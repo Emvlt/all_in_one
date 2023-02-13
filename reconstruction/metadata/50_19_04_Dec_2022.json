@@ -1,0 +1,29 @@
+{
+    "architecture_parameters": {
+        "n_iterations": 10,
+        "n_primal": 5,
+        "n_dual": 5
+    },
+    "dataset_parameters": {
+        "dimension": "2D",
+        "dataset_name": "Custom"
+    },
+    "geometry_parameters": {
+        "x_lim": 128,
+        "size": 512,
+        "angle_start": 0,
+        "angle_end": 6.28318530718,
+        "n_angles": 540,
+        "src_radius": 512,
+        "det_radius": 512,
+        "detector_count":736,
+        "det_spacing":2.5
+    },
+    "training_parameters": {
+        "epochs":10001,
+        "batch_size": 1,
+        "learning_rate": 0.001,
+        "maximum_steps": 10000
+    },
+    "device": "cuda:0"
+}
