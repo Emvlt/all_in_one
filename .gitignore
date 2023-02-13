@@ -138,3 +138,5 @@ data_processing_files/matlab_essentials.zip
 
 reconstruction/odl/
 reconstruction/odlcuda/
+
+*.orig
