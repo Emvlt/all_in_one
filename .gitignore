@@ -129,11 +129,12 @@ dmypy.json
 .pyre/
 
 # Project-specific files
-all_in_one/data_processing_files/constants.py
-all_in_one/data_processing_files/*.m
-all_in_one/data_processing_files/xacb2
-all_in_one/data_processing_files/xacb2_xml
-all_in_one/data_processing_files/read_xacb2.mexw64
+data_processing_files/constants.py
+data_processing_files/*.m
+data_processing_files/xacb2
+data_processing_files/xacb2_xml
+data_processing_files/read_xacb2.mexw64
+data_processing_files/matlab_essentials.zip
 
-all_in_one/reconstruction/odl
-all_in_one/reconstruction/odlcuda
+reconstruction/odl/
+reconstruction/odlcuda/
