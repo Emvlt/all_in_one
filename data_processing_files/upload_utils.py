@@ -63,4 +63,8 @@ class PARAMIKO_PROTOCOL():
     def mkdir(self, dir_path:pathlib.Path):
         print(f'Making dir at {dir_path}')
         if not self.debug:
-            self.sftp.mkdir(str(dir_path))
+            try:
+                self.sftp.chdir(dir_path)  # Test if remote_path exists
+            except IOError:
+                self.sftp.mkdir(dir_path)
+

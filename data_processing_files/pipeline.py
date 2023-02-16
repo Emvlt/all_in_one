@@ -50,15 +50,13 @@ def save_status_file(json_dict:Dict):
 # 3) Processes the file (extracts the content of the .ptr file to friendly format)
 # 4) Zips the extracted data before sending to computing resources
 # 5) Uploads the new .zip file to the computing resources
-def process_scan(project, subject:str, experiment:str, experiment_label:str, download_folder_path:pathlib.Path, debug = False, packed_readings = True):
+def process_scan(project, subject:str, experiment:str, experiment_label:str, download_folder_path:pathlib.Path, paramiko_protocol:PARAMIKO_PROTOCOL, debug = False, packed_readings = True):
     status_dict = {}
     ## Stamp Access
     now = datetime.now()
     status_dict['accessed'] = now.strftime("%m/%d/%Y/%H:%M:%S")
-    ## Instanciate Paramiko connection
-    paramiko_protocol = PARAMIKO_PROTOCOL(debug)
     ## Make remote dir
-    remote_dir_path = f'{MATHS_DATASET_PATH}/{subject}/{experiment}'
+    remote_dir_path = f'{MATHS_DATASET_PATH}/{subject}/{experiment}/{experiment_label}'
     paramiko_protocol.mkdir(remote_dir_path)
     paramiko_protocol.set_remote_dir(remote_dir_path)
     ## Download data
@@ -88,14 +86,18 @@ def process_all_scans(connection, project_id:str, download_folder_path:pathlib.P
     status_dict = open_status_file()
     project     = connection.projects[project_id]
     subjects = project.subjects
+    ## Instanciate Paramiko connection
+    paramiko_protocol = PARAMIKO_PROTOCOL(debug)
     for subject in subjects:
         print(f'Subject: {subject}')
         experiments = project.subjects[subject].experiments
         status_dict[subject] = {}
+        paramiko_protocol.mkdir(f'{MATHS_DATASET_PATH}/{subject}')
         for experiment in experiments:
             print(f'Experiment: {experiment}')
+            paramiko_protocol.mkdir(f'{MATHS_DATASET_PATH}/{subject}/{experiment}')
             experiment_label = project.experiments[experiment].label
-            returned_status_dict = process_scan(project, subject, experiment, experiment_label, download_folder_path, debug)
+            returned_status_dict = process_scan(project, subject, experiment, experiment_label, download_folder_path, paramiko_protocol, debug)
             status_dict[subject][experiment_label] = returned_status_dict
             save_status_file(status_dict)
 
