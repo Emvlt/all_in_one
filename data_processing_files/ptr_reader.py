@@ -11,6 +11,7 @@ import pathlib
 import json
 import xml.etree.ElementTree as ET
 from constants import MATLAB_FUNCS_DIR
+from upload_utils import PARAMIKO_PROTOCOL
 
 ## Class definition of the UIDPROCESSOR class. The Siemens format can be queried using different arguments, among which UID.
 # For certain UID values, a certain data structure is returned from MATLAB, this can be the Air Calibration table, the metadata or else the Dose.
@@ -339,12 +340,24 @@ class MATLABBRIDGE:
     def fetch_images(self, file_name:pathlib.Path, n_readings:int):
         raise NotImplementedError
 
-    def fetch_readings(self, file_name:pathlib.Path, n_readings:int, n_detector_rows:int):
-        complete_reading = np.zeros((736, n_readings*n_detector_rows))
-        for scan_no in range(1,2):
-            for reading_no in tqdm(range(1, 1+n_readings)):
-                complete_reading[:,(reading_no-1)*n_detector_rows:(reading_no)*n_detector_rows] = self.fetch_reading(file_name, scan_no, reading_no)
-        np.save(self.save_folder_path.joinpath(f'readings'), complete_reading,allow_pickle=True)
+    def fetch_readings(self, file_name:pathlib.Path, n_readings:int, n_detector_rows:int, packed_readings=False, **kwargs):
+        if packed_readings:
+            complete_reading = np.zeros((736, n_readings*n_detector_rows))
+            for scan_no in range(1,2):
+                for reading_no in tqdm(range(1, 1+n_readings)):
+                    complete_reading[:,(reading_no-1)*n_detector_rows:(reading_no)*n_detector_rows] = self.fetch_reading(file_name, scan_no, reading_no)
+            np.save(self.save_folder_path.joinpath(f'readings'), complete_reading,allow_pickle=True)
+        else:
+            paramiko_protocol:PARAMIKO_PROTOCOL = kwargs['sftp_protocol']
+            paramiko_protocol.mkdir(paramiko_protocol.remote_dir_path.joinpath(f'{file_name.stem}'))
+            paramiko_protocol.open_sftp()
+            for scan_no in range(1,2):
+                for reading_no in tqdm(range(1, 1+n_readings)):
+                    reading = self.fetch_reading(file_name, scan_no, reading_no)
+                    np.save(self.save_folder_path.joinpath(f'reading'), reading)
+                    paramiko_protocol.sftp_transfer(self.save_folder_path.joinpath(f'reading.npy'), paramiko_protocol.remote_dir_path.joinpath(f'{file_name.stem}/reading_{reading_no-1}.npy'))
+                    self.save_folder_path.joinpath(f'reading').unlink()
+            paramiko_protocol.close_sftp()
 
     def mat_file_temp_save(self, file_name:pathlib.Path, uid_key:int):
         metadata_data_file_name = self.save_folder_path.joinpath(f'UID_{uid_key}.mat')
@@ -501,7 +514,7 @@ class PTRFILEPROCESSOR:
             else:
                 raise NotImplementedError(f'Returned data of UID {UID_key} never encountered, passing...')
 
-    def process_ptr_file(self, file_name:pathlib.Path):
+    def process_ptr_file(self, file_name:pathlib.Path, packed_readings=True, **kwargs):
         self.exhaustive_check(file_name)
         self.matlab_bridge.set_save_folder_path(self.folder_path.joinpath(file_name.stem))
         for UID_key in [0, 12, 20, 30, 50, 60, 61]:
@@ -511,14 +524,14 @@ class PTRFILEPROCESSOR:
         self.process_det_no(file_name, 2)
         self.process_table_no(file_name, 1)
         self.process_table_no(file_name, 2)
-        self.matlab_bridge.fetch_readings(file_name, self.get_n_readings(file_name),self.get_n_detector_row(file_name))
+        self.matlab_bridge.fetch_readings(file_name, self.get_n_readings(file_name),self.get_n_detector_row(file_name), packed_readings=True, **kwargs)
 
-    def process_full_folder(self):
+    def process_full_folder(self, packed_readings=True, **kwargs):
         file_names = self.folder_path.glob('*.ptr')
         for file_name in file_names:
-            self.process_ptr_file(file_name)
+            self.process_ptr_file(file_name, packed_readings=True, **kwargs)
 
-def process_raw_file(temp_dir_path:pathlib.Path, debug=False):
+def process_raw_file(temp_dir_path:pathlib.Path, debug=False, packed_readings=True, **kwargs):
     print(f'Processing folder {temp_dir_path}')
     if not debug:
         assert temp_dir_path.is_dir()
@@ -527,15 +540,18 @@ def process_raw_file(temp_dir_path:pathlib.Path, debug=False):
         for raw_file_path in temp_dir_path.glob('*.ptr'):
             print(f'Processing file {raw_file_path}')
             assert raw_file_path.suffix =='.ptr'
-            files_processor.process_full_folder()
+            files_processor.process_full_folder(packed_readings=True, **kwargs)
             ## Clean up
             print('Clean up operation: removing .ptr file...')
             raw_file_path.unlink()
 
 if __name__ == '__main__':
-    folder_path = r'C:\Users\hx21262\Downloads\TEMP_XNAT\100_20200414\resources\RAW\files'
+    import matplotlib.pyplot as plt
+    folder_path = r'C:\Users\hx21262\all_in_one_v4\data_processing_files'
     file_processor = PTRFILEPROCESSOR(folder_path)
-    file_processor.process_ptr_file(pathlib.Path(r'C:\Users\hx21262\Downloads\TEMP_XNAT\100_20200414\resources\RAW\files\66862.Anonymous.CT..601.RAW.20200414.110431.963978.2020.07.03.21.11.10.086000.1309236364.ptr'))
-
+    for i in range(1,40000,1000):
+        a = file_processor.matlab_bridge.fetch_reading(pathlib.Path(r'C:\Users\hx21262\Downloads\TEMP_XNAT\100_20200414\resources\RAW\files\66862.Anonymous.CT..601.RAW.20200414.110431.963978.2020.07.03.21.11.10.086000.1309236364.ptr'), 1, i)
+        plt.matshow(a)
+        plt.show()
 
 

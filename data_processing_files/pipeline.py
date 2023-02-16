@@ -50,11 +50,17 @@ def save_status_file(json_dict:Dict):
 # 3) Processes the file (extracts the content of the .ptr file to friendly format)
 # 4) Zips the extracted data before sending to computing resources
 # 5) Uploads the new .zip file to the computing resources
-def process_scan(project, subject:str, experiment:str, experiment_label:str, download_folder_path:pathlib.Path, debug = False):
+def process_scan(project, subject:str, experiment:str, experiment_label:str, download_folder_path:pathlib.Path, debug = False, packed_readings = True):
     status_dict = {}
     ## Stamp Access
     now = datetime.now()
     status_dict['accessed'] = now.strftime("%m/%d/%Y/%H:%M:%S")
+    ## Instanciate Paramiko connection
+    paramiko_protocol = PARAMIKO_PROTOCOL(debug)
+    ## Make remote dir
+    remote_dir_path = f'{MATHS_DATASET_PATH}/{subject}/{experiment}'
+    paramiko_protocol.mkdir(remote_dir_path)
+    paramiko_protocol.set_remote_dir(remote_dir_path)
     ## Download data
     zip_file_path = download_raw_data(project, subject, experiment, experiment_label, download_folder_path, debug)
     ## Stamp Downloaded
@@ -63,21 +69,17 @@ def process_scan(project, subject:str, experiment:str, experiment_label:str, dow
     ## Unzip file
     temp_dir_path = unzip_file(zip_file_path, zip_file_path.parent, debug)
     ## Process file
-    process_raw_file(temp_dir_path, debug)
+    process_raw_file(temp_dir_path, debug, packed_readings, sftp_protocol = paramiko_protocol)
     ## Stamp Processed
     now = datetime.now()
     status_dict['processed'] = now.strftime("%m/%d/%Y/%H:%M:%S")
     ## Zip dir
     zipped_file_path = zip_file(temp_dir_path, debug)
-    ## Instanciate Paramiko connection
-    paramiko_protocol = PARAMIKO_PROTOCOL(debug)
-    ## Make remote dir
-    paramiko_protocol.mkdir(f'{MATHS_DATASET_PATH}/{subject}/{experiment}')
     ## Upload dir
     paramiko_protocol.sftp_transfer(zipped_file_path, f'{MATHS_DATASET_PATH}/{subject}/{experiment}/{zip_file_path.stem}.zip')
     ## Stamp Uploaded
     now = datetime.now()
-    status_dict['processed'] = now.strftime("%m/%d/%Y/%H:%M:%S")
+    status_dict['uploaded'] = now.strftime("%m/%d/%Y/%H:%M:%S")
     return status_dict
 
 ## This is the pipeline to process ALL the experiments for all the subjects of the project;

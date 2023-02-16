@@ -26,8 +26,7 @@ def paramiko_decorator(method):
         @wraps(method)
         def _impl(self, *method_args, **method_kwargs):
             print(f'Opening Paramiko connection to {MATHS_SERVER}')
-            self.client.connect(MATHS_SERVER, username=USER_ID, password=PASSWORD)
-            self.sftp = self.client.open_sftp()
+            self.open_sftp()
             method(self, *method_args, **method_kwargs)
             print(f'Closing Paramiko connection to {MATHS_SERVER}')
             self.client.close()
@@ -42,6 +41,16 @@ class PARAMIKO_PROTOCOL():
 
     def set_debug_mode(self, debug):
         self.debug = debug
+
+    def open_sftp(self):
+        self.client.connect(MATHS_SERVER, username=USER_ID, password=PASSWORD)
+        self.sftp = self.client.open_sftp()
+
+    def close_sftp(self):
+        self.client.close()
+
+    def set_remote_dir(self, remote_dir_path:pathlib.Path):
+        self.remote_dir_path = remote_dir_path
 
     @paramiko_decorator
     def sftp_transfer(self, local_file_path:pathlib.Path, remote_file_path:pathlib.Path):
