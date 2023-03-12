@@ -52,6 +52,7 @@ class MATLABBRIDGE:
         local_save_path  = self.save_folder_path.joinpath('sinogram.npy')
         remote_save_path = sftp_protocol.remote_dir_path + '/sinogram.npy'
         sftp_protocol.save_upload(sinogram, local_save_path, remote_save_path)
+        local_save_path.unlink()
 
     def mat_file_temp_save(self, uid_key:int):
         metadata_data_file_name = self.save_folder_path.joinpath(f'UID_{uid_key}.mat')
