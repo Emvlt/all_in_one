@@ -130,13 +130,14 @@ dmypy.json
 
 # Project-specific files
 data_processing_files/constants.py
-data_processing_files/*.m
-data_processing_files/xacb2
-data_processing_files/xacb2_xml
-data_processing_files/read_xacb2.mexw64
-data_processing_files/matlab_essentials.zip
-
+data_processing_files/matlab_essentials
 reconstruction/odl/
 reconstruction/odlcuda/
+misc.py
+data_processing_files/misc.py
+reconstruction/misc.py
+data_processing_files/scripts_for_emillien
+data_processing_files/calibration_data.py
+.vscode
 
 *.orig
