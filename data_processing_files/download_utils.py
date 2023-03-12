@@ -2,6 +2,7 @@
 This module holds the functions used to download data from the XNAT server
 """
 import pathlib
+import zipfile
 
 from tqdm import tqdm
 
@@ -30,3 +31,17 @@ def download_raw_data(project, subject:str, experiment:str, experiment_label:str
     # Return the address of the file
     return zip_file_path
 
+## Unzips and deletes .zip file to keep things tidy; returns the address of the .ptr files folder
+def unzip_file(file_path:pathlib.Path, unzip_dir_path:pathlib.Path, debug=False) -> pathlib.Path:
+    assert file_path.suffix == '.zip'
+    unzipped_folder_path = file_path.with_suffix('').joinpath('resources/RAW/files')
+    if unzipped_folder_path.is_file():
+        print(f'Folder already unzipped...')
+    else:
+        if not debug:
+            print(f'Unpacking zip file to {unzip_dir_path}')
+            with zipfile.ZipFile(str(file_path), 'r') as zip_ref:
+                zip_ref.extractall(unzip_dir_path)
+            file_path.unlink()
+    print(f"Returning unzipped folders at {unzipped_folder_path}")
+    return unzipped_folder_path
