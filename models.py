@@ -40,75 +40,6 @@ class CnnBlock(nn.Module):
     def forward(self, input_tensor:torch.Tensor) -> torch.Tensor:
         return self.block(input_tensor)
 
-class Iteration1D(nn.Module):
-    def __init__(self, dimension:int, pytorch_operator, pytorch_operator_adj, operator_norm, n_filters = 32):
-        super(Iteration1D, self).__init__()
-        self.dimension = dimension
-        self.op = pytorch_operator
-        self.op_adj = pytorch_operator_adj
-        self.operator_norm = operator_norm
-        self.n_filters = n_filters
-
-        ### We implicitely expect the input primal to have one channel
-        self.primal_block = CnnBlock(2, self.n_filters, 2, 1)
-        self.dual_block = CnnBlock(dimension, self.n_filters, 3*self.op_adj.operator.domain.shape[0], self.op_adj.operator.domain.shape[0])
-
-    def dual_operation(self, primal:torch.Tensor, dual:torch.Tensor, input_sinogram:torch.Tensor) -> torch.Tensor:
-        '''
-        evalop = self.op(primal) / self.operator_norm
-        inp = torch.cat([dual, evalop, input_sinogram / self.operator_norm ], dim=1)
-        dual = dual + self.dual_block(inp)
-        '''
-        return dual + self.dual_block( torch.cat([dual, torch.squeeze(self.op(primal)) / self.operator_norm, input_sinogram / self.operator_norm ], dim=1))
-
-    def primal_operation(self, primal:torch.Tensor, dual:torch.Tensor) -> torch.Tensor:
-        '''
-        evalop = self.op_adj(dual) / self.operator_norm
-        inp = torch.cat([primal, evalop], dim=1)
-        primal = primal + self.primal_block(inp)
-        '''
-        return primal + self.primal_block(torch.cat([primal, self.op_adj(dual.unsqueeze(1)) / self.operator_norm], dim=1))
-
-    def forward(self, primal:torch.Tensor, dual:torch.Tensor, input_sinogram:torch.Tensor):
-        # dual block
-        dual = self.dual_operation(primal, dual, input_sinogram)
-        # primal block
-        return self.primal_operation(primal, dual), dual
-
-class Iteration2D(nn.Module):
-    def __init__(self, dimension:int, pytorch_operator, pytorch_operator_adj, operator_norm, n_filters = 32):
-        super(Iteration2D, self).__init__()
-        self.dimension = dimension
-        self.op = pytorch_operator
-        self.op_adj = pytorch_operator_adj
-        self.operator_norm = operator_norm
-        self.n_filters = n_filters
-
-        ### We implicitely expect the input primal to have one channel
-        self.primal_block = CnnBlock(2, self.n_filters, 2, 1)
-        self.dual_block = CnnBlock(dimension, self.n_filters, 3, 1)
-
-    def dual_operation(self, primal:torch.Tensor, dual:torch.Tensor, input_sinogram:torch.Tensor) -> torch.Tensor:
-        '''
-        evalop = self.op(primal) / self.operator_norm
-        inp = torch.cat([dual, evalop, input_sinogram / self.operator_norm ], dim=1)
-        dual = dual + self.dual_block(inp)
-        '''
-        return dual + self.dual_block( torch.cat([dual, self.op(primal) / self.operator_norm, input_sinogram / self.operator_norm ], dim=1))
-
-    def primal_operation(self, primal:torch.Tensor, dual:torch.Tensor) -> torch.Tensor:
-        '''
-        evalop = self.op_adj(dual) / self.operator_norm
-        inp = torch.cat([primal, evalop], dim=1)
-        primal = primal + self.primal_block(inp)
-        '''
-        return primal + self.primal_block(torch.cat([primal, self.op_adj(dual) / self.operator_norm], dim=1))
-
-    def forward(self, primal:torch.Tensor, dual:torch.Tensor, input_sinogram:torch.Tensor):
-        # dual block
-        dual = self.dual_operation(primal, dual, input_sinogram)
-        # primal block
-        return self.primal_operation(primal, dual), dual
 
 class Iteration(nn.Module):
     def __init__(self, dimension:int, pytorch_operator, pytorch_operator_adj, operator_norm, n_filters = 32):
@@ -148,48 +79,6 @@ class Iteration(nn.Module):
         # primal block
         return self.primal_operation(primal, dual), dual
 
-class LearnedPrimalDual1D(nn.Module):
-    def __init__(self, dimension:int, odl_backend:ODLBackend, n_iterations:int, n_filters:int, device:torch.device):
-        super(LearnedPrimalDual1D, self).__init__()
-        self.dimension = dimension
-        self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm = odl_backend.get_pytorch_operators(device)
-        self.operator_domain_shape = self.pytorch_operator.operator.domain.shape # type:ignore
-        self.adjoint_domain_shape  = self.pytorch_operator_adj.operator.domain.shape # type:ignore
-        self.device = device
-        self.n_iterations = n_iterations
-        self.iteration_modules = torch.nn.ModuleDict(
-            {f'iteration_{i}':Iteration1D(dimension, self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm, n_filters) for i in range(self.n_iterations)}
-            ).to(device)
-
-    def forward(self, input_sinogram:torch.Tensor):
-        primal = torch.zeros((input_sinogram.size()[0], 1) + self.operator_domain_shape).to(self.device) #type:ignore
-        dual   = torch.zeros((input_sinogram.size()[0], self.adjoint_domain_shape[0], self.adjoint_domain_shape[1])).to(self.device) #type:ignore
-
-        for i in range(self.n_iterations):
-            primal, dual = self.iteration_modules[f'iteration_{i}'](primal, dual, input_sinogram)
-        return primal[:, 0:1, :]
-
-class LearnedPrimalDual2D(nn.Module):
-    def __init__(self, dimension:int, odl_backend:ODLBackend, n_iterations:int, n_filters:int, device:torch.device):
-        super(LearnedPrimalDual2D, self).__init__()
-        self.dimension = dimension
-        self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm = odl_backend.get_pytorch_operators(device)
-        self.operator_domain_shape = self.pytorch_operator.operator.domain.shape # type:ignore
-        self.adjoint_domain_shape  = self.pytorch_operator_adj.operator.domain.shape # type:ignore
-        self.device = device
-        self.n_iterations = n_iterations
-        self.iteration_modules = torch.nn.ModuleDict(
-            {f'iteration_{i}':Iteration2D(dimension, self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm, n_filters) for i in range(self.n_iterations)}
-            ).to(device)
-
-    def forward(self, input_sinogram:torch.Tensor):
-        primal = torch.zeros((input_sinogram.size()[0], 1) + self.operator_domain_shape).to(self.device) #type:ignore
-        dual   = torch.zeros((input_sinogram.size()[0], 1) + self.adjoint_domain_shape).to(self.device) #type:ignore
-
-        for i in range(self.n_iterations):
-            primal, dual = self.iteration_modules[f'iteration_{i}'](primal, dual, input_sinogram)
-        return primal[:, 0:1, :]
-
 class LearnedPrimalDual(nn.Module):
     def __init__(self, dimension:int, odl_backend:ODLBackend, n_iterations:int, n_filters:int, device:torch.device):
         super(LearnedPrimalDual, self).__init__()
@@ -205,13 +94,11 @@ class LearnedPrimalDual(nn.Module):
 
     def forward(self, input_sinogram:torch.Tensor):
 
-        if self.dimension == 1:
-            primal = torch.zeros((input_sinogram.size()[0], 1) + self.operator_domain_shape).to(self.device) #type:ignore
-            dual   = torch.zeros((input_sinogram.size()[0], self.adjoint_domain_shape[0], self.adjoint_domain_shape[1])).to(self.device) #type:ignore
+        primal = torch.zeros((input_sinogram.size()[0], 1) + self.operator_domain_shape).to(self.device) #type:ignore
+        dual   = torch.zeros((input_sinogram.size()[0], 1) + self.adjoint_domain_shape).to(self.device) #type:ignore
 
-        elif self.dimension == 2:
-            primal = torch.zeros((input_sinogram.size()[0], 1) + self.operator_domain_shape).to(self.device) #type:ignore
-            dual   = torch.zeros((input_sinogram.size()[0], 1) + self.adjoint_domain_shape).to(self.device) #type:ignore
+        if self.dimension == 1:
+            dual   = torch.squeeze(dual)
 
         else:
             raise ValueError
