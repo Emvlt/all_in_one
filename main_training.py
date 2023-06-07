@@ -1,4 +1,5 @@
 import argparse
+import pathlib
 
 import json
 from torchvision.transforms import Compose
@@ -7,8 +8,8 @@ from torch.utils.data import DataLoader
 from datasets import LIDC_IDRI
 from backends.odl import ODLBackend
 from train_functions import train_end_to_end, train_joint, train_reconstruction_network, train_segmentation_network
-from utils import check_metadata
-from transforms import Normalise # type:ignore
+from utils import check_metadata, PyPlotImageWriter
+from transforms import Normalise, ToFloat # type:ignore
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -16,10 +17,10 @@ if __name__ == '__main__':
     parser.add_argument('--metadata_path', required=False, default='metadata_folder/reconstruction_01_06_23.json')
     args = parser.parse_args()
 
-
     ## Metadata
     metadata_dict = dict(json.load(open(args.metadata_path)))
-    ## Sanity checks
+    ## Sanity checksnvidia-smi
+
     check_metadata(metadata_dict)
     ## Unpacking dicts
     training_dict = metadata_dict["training_dict"]
@@ -34,8 +35,8 @@ if __name__ == '__main__':
 
     ## Transforms
     transforms = {
-        "reconstruction_transforms":Compose(Normalise()),
-        "mask_transforms":None
+        "reconstruction_transforms":Compose([ToFloat(), Normalise()]),
+        "mask_transforms":Compose([ToFloat()])
     }
 
     ## Dataset and Dataloader
@@ -65,6 +66,8 @@ if __name__ == '__main__':
         drop_last=True,
         num_workers=training_dict["num_workers"])
 
+    image_writer = PyPlotImageWriter(pathlib.Path(f'images/{args.type}'))
+
     if args.type == 'joint':
         train_joint(
             dimension=dimension,
@@ -72,7 +75,8 @@ if __name__ == '__main__':
             architecture_dict = architecture_dict,
             training_dict = training_dict,
             train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader
+            test_dataloader = testing_dataloader,
+            image_writer = image_writer
         )
 
     elif args.type == 'reconstruction':
@@ -82,16 +86,17 @@ if __name__ == '__main__':
             architecture_dict = architecture_dict,
             training_dict = training_dict,
             train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader
+            test_dataloader = testing_dataloader,
+            image_writer = image_writer
         )
 
     elif args.type == 'segmentation':
         train_segmentation_network(
-            dimension=dimension,
             architecture_dict = architecture_dict,
             training_dict = training_dict,
             train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader
+            test_dataloader = testing_dataloader,
+            image_writer = image_writer
         )
 
     elif args.type == 'end_to_end':
@@ -101,7 +106,8 @@ if __name__ == '__main__':
             architecture_dict = architecture_dict,
             training_dict = training_dict,
             train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader
+            test_dataloader = testing_dataloader,
+            image_writer = image_writer
         )
 
     else:

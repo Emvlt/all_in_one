@@ -1,6 +1,20 @@
 from typing import Dict
 import pathlib
 
+import torch
+import matplotlib.pyplot as plt
+
+class PyPlotImageWriter():
+    def __init__(self, path_to_images_folder: pathlib.Path) -> None:
+        self.path_to_images_folder = path_to_images_folder
+        self.path_to_images_folder.mkdir(parents=True, exist_ok=True)
+
+    def write_image_tensor(self, x:torch.Tensor, image_name:str):
+        plt.matshow(x[0,0].detach().cpu())
+        plt.savefig(self.path_to_images_folder.joinpath(image_name))
+        plt.clf()
+        plt.close()
+
 def check_integer(variable_name:str, variable_value):
     assert type(variable_value) == int, f'{variable_name} must be an integer'
 
