@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List
 import pathlib
 
 import torch
@@ -15,6 +15,24 @@ class PyPlotImageWriter():
         plt.clf()
         plt.close()
 
+    def write_line_tensor(self, x:torch.Tensor, image_name:str):
+        plt.plot(x.detach().cpu())
+        plt.savefig(self.path_to_images_folder.joinpath(image_name))
+        plt.clf()
+        plt.close()
+
+    def write_kernel_weights(self, x:List[torch.Tensor], names:List[str], fig_name:str):
+        f, (axs) = plt.subplots(len(names), sharey=True)
+        for i, weight in enumerate(x):
+            axs[i].plot(weight.detach().cpu())
+            axs[i].set_title(names[i])
+        plt.savefig(self.path_to_images_folder.joinpath(fig_name))
+        plt.clf()
+        plt.close()
+
+def check_boolean(variable_name:str, variable_value):
+    assert type(variable_value) == bool, f'{variable_name} must be a boolean'
+
 def check_integer(variable_name:str, variable_value):
     assert type(variable_value) == int, f'{variable_name} must be an integer'
 
@@ -26,6 +44,9 @@ def check_string(variable_name:str, variable_value):
 
 def check_dict(variable_name:str, variable_value):
     assert type(variable_value) == type({}), f'{variable_name} must be a dictionnary'
+
+def check_list(variable_name:str, variable_value):
+    assert type(variable_value) == type([]), f'{variable_name} must be a list'
 
 def check_scan_parameter_dict(scan_parameter_dict:Dict):
     assert 'space_dict' in scan_parameter_dict.keys(), 'Provide a space dictionnary'
@@ -59,11 +80,20 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict):
     assert 'save_path' in reconstruction_dict.keys(), 'specify save path for reconstruction network'
 
     if reconstruction_dict['name']  == 'lpd':
-       assert 'lpd_n_iterations' in reconstruction_dict.keys(), 'Specify number of lpd iterations'
-       check_integer('lpd_n_iterations', reconstruction_dict['lpd_n_iterations'])
+        assert 'n_primal' in reconstruction_dict.keys(), 'Specify number of lpd primal channels'
+        check_integer('n_primal', reconstruction_dict['n_primal'])
 
-       assert 'lpd_n_filters' in reconstruction_dict.keys(), 'Specify number of lpd filters'
-       check_integer('lpd_n_filters', reconstruction_dict['lpd_n_filters'])
+        assert 'n_dual' in reconstruction_dict.keys(), 'Specify number of lpd dual channels'
+        check_integer('n_dual', reconstruction_dict['n_dual'])
+
+        assert 'lpd_n_iterations' in reconstruction_dict.keys(), 'Specify number of lpd iterations'
+        check_integer('lpd_n_iterations', reconstruction_dict['lpd_n_iterations'])
+
+        assert 'lpd_n_filters_primal' in reconstruction_dict.keys(), 'Specify number of lpd filters primal'
+        check_integer('lpd_n_filters_primal', reconstruction_dict['lpd_n_filters_primal'])
+
+        assert 'lpd_n_filters_dual' in reconstruction_dict.keys(), 'Specify number of lpd filters dual'
+        check_integer('lpd_n_filters_dual', reconstruction_dict['lpd_n_filters_dual'])
 
     else:
         raise NotImplementedError(f"Reconstruction network {reconstruction_dict['name']} not implemented.")
@@ -128,7 +158,6 @@ def check_reconstruction_consistency(architecture_dict:Dict):
 
     ### Is the value a dictionary?
     check_dict('reconstruction', architecture_dict['reconstruction'])
-
     reconstruction_dict = architecture_dict['reconstruction']
 
     ### Are the networks consistent?
@@ -170,6 +199,9 @@ def consistency_checks(metada_dict:Dict):
         assert 'dose' in metada_dict['training_dict'].keys(), 'Provide dose argument to metadata'
         assert 0< metada_dict['training_dict']['dose'] <= 1, f"Dose must be in ]0,1], currently is {metada_dict['training_dict']['dose']}"
 
+        assert 'dual_loss' in metada_dict['training_dict'].keys(), 'Provide dual_loss argument to metadata'
+        assert 0< metada_dict['training_dict']['dual_loss'] <= 1, f"Dual loss must be in ]0,1], currently is {metada_dict['training_dict']['dual_loss']}"
+
     elif metada_dict["pipeline"] == 'segmentation':
         check_segmentation_consistency(metada_dict['architecture_dict'])
 
@@ -179,6 +211,8 @@ def consistency_checks(metada_dict:Dict):
         assert 'dose' in metada_dict['training_dict'].keys(), 'Provide dose argument to metadata'
         assert 0< metada_dict['training_dict']['dose'] <= 1, f"Dose must be in ]0,1], currently is {metada_dict['training_dict']['dose']}"
 
+    elif metada_dict["pipeline"] == 'fourier_filter':
+        pass
 
     else:
         raise NotImplementedError (f'Consistency checks not implemented for {metada_dict["pipeline"]}')
@@ -198,6 +232,12 @@ def check_training_dict(training_dict:Dict):
 
     assert "num_workers" in training_dict.keys(), "provide number of dataloader workers"
     check_integer('num_workers', training_dict['num_workers'])
+
+    assert "is_subset" in training_dict.keys(), "provide is_subset boolean argument"
+    check_boolean('is_subset', training_dict['is_subset'])
+
+    assert "subset" in training_dict.keys(), "provide subset argument, can be empty list"
+    check_list('subset', training_dict['subset'])
 
 def check_metadata(metada_dict:Dict):
     print('Checking metadata type and parameters consistency...')

@@ -26,24 +26,44 @@ class LIDC_IDRI(Dataset):
     def __init__(
             self,
             pipeline:str,
+            backend:ODLBackend,
             training_proportion:float,
             mode:str,
-            transform=None
+            is_subset: bool,
+            transform=None,
+            subset=[]
             ):
 
+        ## Defining the path to data
         self.path_to_processed_dataset = pathlib.Path('/local/scratch/public/AItomotools/processed/LIDC-IDRI')
         self.patients_masks_dictionary = load_json(self.path_to_processed_dataset.joinpath('patients_masks.json'))
         self.patients_diagnosis_dictionary = load_json(self.path_to_processed_dataset.joinpath('patient_id_to_diagnosis.json'))
-        self.total_patients = 1012
 
+        ## Instanciating the class attributes from constructor argument
         self.pipeline = pipeline
-        self.patient_index_to_n_slices_dict :Dict = {
-            f'LIDC-IDRI-{format_index(index)}' : len(list(self.path_to_processed_dataset.joinpath(f'LIDC-IDRI-{format_index(index)}').glob('slice_*.npy'))) for index in range(1,self.total_patients)
-        }
+        self.backend = backend
         self.training_proportion = training_proportion
         self.mode = mode
+        ## Subset is either a boolean with False value OR a List of patient Ids
+        self.is_subset = is_subset
         self.transform = transform
 
+
+        ## Partitioning the dataset
+        if is_subset == False:
+            self.total_patients = 1012
+            self.subset = [index for index in range(1,self.total_patients)]
+        else:
+            self.total_patients = len(self.subset)
+            self.subset = subset
+
+        ### Making a correspondance between patient ID (LIDC-IDRI-xxxx) and the number of slices of the patient
+        self.patient_index_to_n_slices_dict = {
+            f'LIDC-IDRI-{format_index(index)}' : len(list(self.path_to_processed_dataset.joinpath(f'LIDC-IDRI-{format_index(index)}').glob('slice_*.npy'))) for index in self.subset
+        }
+
+        ### Calculating the number of patients
+        ### Note: we do sanity checks here with testing and training regardless of the self.mode argument
         self.n_patients_training = math.floor(self.training_proportion*self.total_patients)
         self.n_patients_testing  = math.ceil((1-self.training_proportion)*self.total_patients)
         assert self.total_patients == (self.n_patients_training + self.n_patients_testing), print(
@@ -97,6 +117,9 @@ class LIDC_IDRI(Dataset):
         #### EXPENSIVE ####
         return backend.get_sinogram(self.get_reconstruction_tensor(file_path))
 
+    def get_filtered_backprojection(self, file_path:pathlib.Path, backend:ODLBackend) -> torch.Tensor:
+        return torch.from_numpy(backend.get_filtered_backprojection(backend.operator(np.load(file_path)), 'Hann')).unsqueeze(0) #type:ignore
+
     def get_mask_tensor(self, patient_id:str, slice_index:int) -> torch.Tensor:
         ## First, assess if the slice has a nodule
         try:
@@ -121,13 +144,14 @@ class LIDC_IDRI(Dataset):
         except KeyError:
             mask = torch.zeros((512,512), dtype=torch.bool)
         # byte inversion
-        background = ~mask
+        mask = mask.int()
+        background = 1- mask
         return torch.stack((background, mask))
 
     def __len__(self):
         return len(self.slice_index_to_patient_id_list)
 
-    def get_specific_slice(self, patient_index, slice_index):
+    def get_specific_slice(self, patient_index:str, slice_index:int):
         ## Assumes slice and mask exist
         file_path = self.path_to_processed_dataset.joinpath(f'{patient_index}/slice_{slice_index}.npy')
         return self.get_reconstruction_tensor(file_path), self.get_mask_tensor(patient_index, slice_index)
@@ -140,17 +164,20 @@ class LIDC_IDRI(Dataset):
         file_path = self.path_to_processed_dataset.joinpath(f'{patient_id}/slice_{slice_index}.npy')
 
         ### WE NEVER RETURN THE SINOGRAM TO AVOID COMPUTING IT PER SAMPLE ###
+        ### (except when we want the filtered backprojection...) ###
         if self.pipeline == "joint" or self.pipeline == "end_to_end" or self.pipeline == "segmentation":
             reconstruction_tensor = self.get_reconstruction_tensor(file_path)
             mask_tensor = self.get_mask_tensor(patient_id, slice_index)
             if self.transform is not None:
-                reconstruction_tensor, mask_tensor = self.transform(reconstruction_tensor, mask_tensor)
+                reconstruction_tensor = self.transform['reconstruction_transforms'](reconstruction_tensor, mask_tensor)
+                mask_tensor = self.transform['mask_transforms'](reconstruction_tensor, mask_tensor)
             return reconstruction_tensor, mask_tensor
 
-        elif self.pipeline == "reconstruction":
+        elif self.pipeline == "reconstruction" or self.pipeline=="fourier_filter":
             reconstruction_tensor = self.get_reconstruction_tensor(file_path)
+            #filtered_backprojection = self.get_filtered_backprojection(file_path, self.backend)
             if self.transform is not None:
-                reconstruction_tensor = self.transform(reconstruction_tensor)
+                reconstruction_tensor = self.transform['reconstruction_transforms'](reconstruction_tensor)
             return reconstruction_tensor
 
         elif self.pipeline == "diagnostic":

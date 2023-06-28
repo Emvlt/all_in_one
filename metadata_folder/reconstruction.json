@@ -15,10 +15,12 @@
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
+            "n_primal":5,
+            "n_dual":5,
             "lpd_n_iterations":10,
             "lpd_n_filters":32,
-            "load_path":"store/DAMTP/ev373/all_in_one/models/reconstruction/reconstruction.pth",
-            "save_path":"store/DAMTP/ev373/all_in_one/models/reconstruction/reconstruction.pth",
+            "load_path":"/local/scratch/public/ev373/ev373/all_in_one/models/reconstruction/reconstruction.pth",
+            "save_path":"/local/scratch/public/ev373/ev373/all_in_one/models/reconstruction/reconstruction.pth",
             "device_name":"cuda:2"
         }
     },

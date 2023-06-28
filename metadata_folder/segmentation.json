@@ -17,8 +17,8 @@
             "Unet_input_channels":1,
             "Unet_output_channels":2,
             "Unet_n_filters":8,
-            "load_path":"store/DAMTP/ev373/all_in_one/models/segmentation/segmentation.pth",
-            "save_path":"store/DAMTP/ev373/all_in_one/models/segmentation/segmentation.pth",
+            "load_path":"/local/scratch/public/ev373/ev373/all_in_one/models/segmentation/segmentation.pth",
+            "save_path":"/local/scratch/public/ev373/ev373/all_in_one/models/segmentation/segmentation.pth",
             "device_name":"cuda:3"
         }
     },

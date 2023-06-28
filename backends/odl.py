@@ -3,6 +3,7 @@ from typing import Dict
 import odl
 import odl.contrib.torch as odl_torch
 import torch
+import numpy as np
 
 class ODLBackend():
     def __init__(self) -> None:
@@ -99,4 +100,9 @@ class ODLBackend():
 
     def get_reconstruction(self, sinogram:torch.Tensor) -> torch.Tensor:
         assert self.initialised, 'ODL backend not initialised, consider running odl_backend.initialise_odl_backend_from_metadata_dict'
-        return self.pytorch_operator(sinogram) / self.pytorch_operator_norm # type:ignore
+        return self.pytorch_operator_adjoint(sinogram)  # type:ignore
+
+    def get_filtered_backprojection(self, sinogram:np.ndarray, filter_name:str) -> np.ndarray:
+        assert self.initialised, 'ODL backend not initialised, consider running odl_backend.initialise_odl_backend_from_metadata_dict'
+        fbp = odl.tomo.fbp_op(self.operator, filter_type=filter_name, frequency_scaling=0.8)
+        return fbp(sinogram)

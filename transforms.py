@@ -18,6 +18,13 @@ class Normalise(object):
     def __call__(self, sample:torch.Tensor) -> torch.Tensor:
         return (sample-sample.min()) / (sample.max()-sample.min())
 
+class ToFloat(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, sample:torch.Tensor) -> torch.Tensor:
+        return sample.float()
+
 class FieldsCorrect(object):
     def __init__(self, device:torch.device, sinogram_size:torch.Size, flat_field=None, dark_field=None) -> None:
         if dark_field is None:

@@ -15,10 +15,12 @@
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
+            "n_primal":5,
+            "n_dual":5,
             "lpd_n_iterations":8,
             "lpd_n_filters":16,
-            "load_path":"store/DAMTP/ev373/all_in_one/models/end_to_end/reconstruction.pth",
-            "save_path":"store/DAMTP/ev373/all_in_one/models/end_to_end/reconstruction.pth",
+            "load_path":"/local/scratch/public/ev373/ev373/all_in_one/models/end_to_end/reconstruction.pth",
+            "save_path":"/local/scratch/public/ev373/ev373/all_in_one/models/end_to_end/reconstruction.pth",
             "device_name":"cuda:0"
         },
         "segmentation":{
@@ -26,8 +28,8 @@
             "Unet_input_channels":1,
             "Unet_output_channels":2,
             "Unet_n_filters":8,
-            "load_path":"store/DAMTP/ev373/all_in_one/models/end_to_end/segmentation.pth",
-            "save_path":"store/DAMTP/ev373/all_in_one/models/end_to_end/segmentation.pth",
+            "load_path":"/local/scratch/public/ev373/ev373/all_in_one/models/end_to_end/segmentation.pth",
+            "save_path":"/local/scratch/public/ev373/ev373/all_in_one/models/end_to_end/segmentation.pth",
             "device_name":"cuda:1"
         }
     },
