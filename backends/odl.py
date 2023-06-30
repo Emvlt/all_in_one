@@ -106,3 +106,7 @@ class ODLBackend():
         assert self.initialised, 'ODL backend not initialised, consider running odl_backend.initialise_odl_backend_from_metadata_dict'
         fbp = odl.tomo.fbp_op(self.operator, filter_type=filter_name, frequency_scaling=0.8)
         return fbp(sinogram)
+
+    def get_filtered_backprojection_operator(self, filter_name:str):
+        assert self.initialised, 'ODL backend not initialised, consider running odl_backend.initialise_odl_backend_from_metadata_dict'
+        return odl.tomo.fbp_op(self.operator, filter_type=filter_name, frequency_scaling=0.8)

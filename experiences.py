@@ -8,28 +8,35 @@ from torch.utils.tensorboard import SummaryWriter #type:ignore
 
 from datasets import LIDC_IDRI
 from backends.odl import ODLBackend
-from train_functions import train_fbp, train_end_to_end, train_joint, train_reconstruction_network, train_segmentation_network
+from train_functions import train_reconstruction_network
 from utils import check_metadata, PyPlotImageWriter
 from transforms import Normalise, ToFloat # type:ignore
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--type', required=False, default='reconstruction', help='fourier_filter, reconstruction, segmentation, joint, sequential or end_to_end')
     parser.add_argument('--metadata_path', required=True)
-    parser.add_argument('--experiment_name', required=True)
+    parser.add_argument('--platform', required=True)
     args = parser.parse_args()
 
-    ## Metadata
+    print(f'Running code on {args.platform}')
+    ## Unpacking paths
+    paths_dict = dict(json.load(open('paths_dict.json')))[args.platform]
+    MODELS_PATH = pathlib.Path(paths_dict['MODELS_PATH'])
+    RUNS_PATH = pathlib.Path(paths_dict['RUNS_PATH'])
+    DATASET_PATH = pathlib.Path(paths_dict['DATASET_PATH'])
+
+    ## Unpacking metadata
     metadata_dict = dict(json.load(open(args.metadata_path)))
-
-    ## Sanity checks
-    check_metadata(metadata_dict)
-
-    ## Unpacking dicts
+    pipeline = metadata_dict['pipeline']
+    run_name = metadata_dict["run_name"]
+    experiment_folder_name = metadata_dict["experiment_folder_name"]
     training_dict = metadata_dict["training_dict"]
     scan_parameter_dict = metadata_dict["scan_parameter_dict"]
     architecture_dict = metadata_dict['architecture_dict']
     dimension = metadata_dict['dimension']
+
+    ## Sanity checks
+    check_metadata(metadata_dict)
 
     ## Instanciate backend
     odl_backend = ODLBackend()
@@ -43,6 +50,7 @@ if __name__ == '__main__':
 
     ## Dataset and Dataloader
     training_lidc_idri_dataset = LIDC_IDRI(
+        DATASET_PATH,
         metadata_dict['pipeline'],
         odl_backend,
         training_dict['training_proportion'],
@@ -58,42 +66,15 @@ if __name__ == '__main__':
         drop_last=True,
         num_workers=training_dict["num_workers"])
 
-    testing_lidc_idri_dataset = LIDC_IDRI(
-        metadata_dict['pipeline'],
-        odl_backend,
-        training_dict['training_proportion'],
-        'testing',
-        training_dict['is_subset'],
-        transform = transforms,
-        subset = training_dict['subset']
-        )
-    testing_dataloader = DataLoader(
-        testing_lidc_idri_dataset,
-        1,
-        shuffle=False,
-        drop_last=False,
-        num_workers=training_dict["num_workers"])
-
-    image_writer = PyPlotImageWriter(pathlib.Path(f'images/{args.experiment_name}'))
-
-    pathlib.Path(f'/local/scratch/public/ev373/runs').mkdir(parents=True, exist_ok=True)
+    image_writer = PyPlotImageWriter(pathlib.Path(f'images/{pipeline}/{experiment_folder_name}/{run_name}'))
 
     run_writer = SummaryWriter(
-        log_dir = f'/local/scratch/public/ev373/runs/{args.experiment_name}'
+        log_dir = pathlib.Path(RUNS_PATH).joinpath(f'{pipeline}/{experiment_folder_name}/{run_name}')
     )
 
-    if args.type == 'joint':
-        train_joint(
-            dimension=dimension,
-            odl_backend=odl_backend,
-            architecture_dict = architecture_dict,
-            training_dict = training_dict,
-            train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader,
-            image_writer = image_writer
-        )
+    models_path = pathlib.Path(MODELS_PATH).joinpath(f'{pipeline}/{experiment_folder_name}')
 
-    elif args.type == 'reconstruction':
+    if pipeline == 'reconstruction':
         train_reconstruction_network(
             dimension=dimension,
             odl_backend=odl_backend,
@@ -101,38 +82,8 @@ if __name__ == '__main__':
             training_dict = training_dict,
             train_dataloader = training_dataloader,
             image_writer = image_writer,
-            run_writer = run_writer
-        )
-
-    elif args.type == 'segmentation':
-        train_segmentation_network(
-            architecture_dict = architecture_dict,
-            training_dict = training_dict,
-            train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader,
-            image_writer = image_writer
-        )
-
-    elif args.type == 'end_to_end':
-        train_end_to_end(
-            dimension=dimension,
-            odl_backend=odl_backend,
-            architecture_dict = architecture_dict,
-            training_dict = training_dict,
-            train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader,
-            image_writer = image_writer
-        )
-
-    elif args.type == 'fourier_filter':
-        train_fbp(
-            dimension=dimension,
-            odl_backend=odl_backend,
-            architecture_dict = architecture_dict,
-            training_dict = training_dict,
-            train_dataloader = training_dataloader,
-            test_dataloader = testing_dataloader,
-            image_writer = image_writer
+            run_writer = run_writer,
+            save_folder_path = models_path
         )
 
     else:

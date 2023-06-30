@@ -3,37 +3,23 @@
 
     "dimension":1,
 
-    "experiment_folder_name":"full_dataset",
+    "experiment_folder_name":"6_percent_measurements",
 
-    "run_name":"lpd_10_epochs",
+    "run_name":"filtered_backprojection_hann_filter",
 
     "training_dict":{
-        "batch_size":16,
-        "training_proportion":0.85,
-        "learning_rate":1e-4,
-        "n_epochs":10,
+        "training_proportion":0.8,
         "num_workers":2,
         "dose":1,
-        "dual_loss_weighting":0.5,
-        "is_subset":false,
-        "reconstruction_loss":"MSE",
-        "sinogram_loss":"MSE"
+        "is_subset":true,
+        "subset":[88,143,223,325,470,559,624,772,893,1002]
     },
 
     "architecture_dict":{
         "reconstruction":{
-            "name":"lpd",
-            "n_primal":1,
-            "n_dual":1,
-            "lpd_n_iterations":1,
-            "lpd_n_filters_primal":4,
-            "lpd_n_filters_dual":16,
-            "fourier_filtering":true,
-            "filter_name":"custom",
-            "train_filter":false,
-            "load_path":"lpd.pth",
-            "save_path":"lpd.pth",
-            "device_name":"cuda:0"
+            "name":"filtered_backprojection",
+            "filter_name":"Hann",
+            "device_name":"cuda:1"
         }
     },
 
@@ -47,7 +33,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":512
+            "shape":64
         },
         "detector_partition_dict":{
             "min_pt":-473,

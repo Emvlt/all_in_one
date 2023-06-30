@@ -1,0 +1,12 @@
+{
+    "holly-b":{
+        "RUNS_PATH"    : "/local/scratch/public/ev373/runs",
+        "MODELS_PATH"  : "/local/scratch/public/ev373/models",
+        "DATASET_PATH" : "/local/scratch/public/AItomotools/processed/LIDC-IDRI"
+    },
+    "hpc":{
+        "RUNS_PATH"    : "/home/ev373/work/all_in_one/runs",
+        "MODELS_PATH"  : "/home/ev373/work/all_in_one/models",
+        "DATASET_PATH" : "/rds/user/ev373/hpc-work/datasets/LIDC-IDRI"
+    }
+}

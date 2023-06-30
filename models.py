@@ -1,9 +1,23 @@
-from typing import Tuple
+import pathlib
 
 import torch.nn as nn
 import torch
-import matplotlib.pyplot as plt
 from backends.odl import ODLBackend
+
+def load_network(network:torch.nn.Module, load_path:pathlib.Path | str):
+    if isinstance(load_path, str):
+        load_path = pathlib.Path(load_path)
+    elif isinstance(load_path, pathlib.Path):
+        pass
+    else:
+        raise TypeError(f'Wrong type for load_path argument {load_path}, must be str or pathlib.Path')
+
+    if load_path.is_file():
+        print(f'Loading model state_dict from {load_path}')
+        network.load_state_dict(torch.load(load_path))
+    else:
+        print(f'No file found at {load_path}, no initialisation')
+    return network
 
 def weights_init(module:nn.Module):
     if isinstance(module, nn.Conv1d):
@@ -210,14 +224,18 @@ class Unet(nn.Module):
         return self.l_relu(self.conv4(self.l_relu(self.conv3(torch.cat((u_5, input_tensor), 1)))))
 
 class FilterModule(nn.Module):
-    def __init__(self, dimension:int, detector_size:int, std:float, device:torch.device, training_mode=False):
+    def __init__(self, dimension:int, detector_size:int, filter_name:str,std:float, device:torch.device, training_mode=False):
         super(FilterModule, self).__init__()
         if dimension == 1:
             linspace = torch.linspace(-0.5,0.5,detector_size,dtype=torch.cfloat,device= device)
         else:
             raise NotImplementedError('Filter Module not implemented for dimension != 1')
-        linspace.imag = 0.5 - torch.exp(-torch.square(linspace.real)/(2*std**2))*0.5
-        linspace.real = 0.5 - torch.exp(-torch.square(linspace.real)/(2*std**2))*0.5
+        if filter_name =='custom':
+            linspace.imag = 0.5 - torch.exp(-torch.square(linspace.real)/(2*std**2))*0.5
+            linspace.real = 0.5 - torch.exp(-torch.square(linspace.real)/(2*std**2))*0.5
+        elif filter_name=='ramp':
+            linspace.imag = torch.abs(linspace.imag)
+            linspace.real = torch.abs(linspace.real)
 
         self.weight = torch.nn.Parameter(linspace)
 
@@ -227,7 +245,7 @@ class FilterModule(nn.Module):
         return torch.mul(x, self.weight).squeeze()
 
 class FourierFilteringModule(nn.Module):
-    def __init__(self, dimension:int, n_measurements:int, detector_size:int, device:torch.device, training_mode=False):
+    def __init__(self, dimension:int, n_measurements:int, detector_size:int, device:torch.device, filter_name:str, training_mode:bool):
         super(FourierFilteringModule, self).__init__()
         if dimension != 1:
             raise NotImplementedError("Fourier Filtering module not implemented for dimension !=1")
@@ -236,15 +254,13 @@ class FourierFilteringModule(nn.Module):
         self.n_measurements = n_measurements
         self.detector_size  = detector_size
 
-        self.filter = FilterModule(dimension, self.detector_size, 0.1, device, training_mode)
+        self.filter = FilterModule(dimension, self.detector_size, filter_name, 0.1, device, training_mode)
 
     def forward(self, sinogram:torch.Tensor) -> torch.Tensor:
         # sinogram size : [B_s, n_measurements, Det_size]
         fourier_transform:torch.Tensor = torch.fft.fft(sinogram)
         centered_fourier_transform = torch.fft.fftshift(fourier_transform)
         # fourier_transform size : [B_s, n_measurements, Det_size]
-        centered_fourier_transform = centered_fourier_transform.unsqueeze(2)
-        # fourier_transform size : [B_s, n_measurements, 1, Det_size]
         filtered = self.filter(centered_fourier_transform)
         fbp = torch.fft.ifft(torch.fft.ifftshift(filtered))
         return torch.real(fbp)
@@ -256,7 +272,8 @@ class Iteration(nn.Module):
                  n_measurements:int, detector_size:int,
                  n_primal:int, n_dual:int, n_filters_primal :int, n_filters_dual:int,
                  fourier_filtering:bool,
-                 device:torch.device):
+                 device:torch.device,
+                 filter_name='', training_mode=False):
         super(Iteration, self).__init__()
         self.dimension = dimension
         self.op = pytorch_operator
@@ -265,15 +282,11 @@ class Iteration(nn.Module):
         self.n_measurements = n_measurements
         self.fourier_filtering = fourier_filtering
 
-
         self.primal_block = Unet(2, n_primal+1, n_primal, n_filters_primal).to(device)
         self.dual_block = Unet(dimension, (n_dual+2)*self.n_measurements, n_dual*self.n_measurements, n_filters_dual).to(device)
-        '''
-        self.primal_block = CnnBlock(2, n_filters_primal, n_primal+1, n_primal).to(device)
-        self.dual_block = CnnBlock(dimension, n_filters_dual, (n_dual+2)*self.n_measurements, n_dual*self.n_measurements).to(device)
-        '''
+
         if self.fourier_filtering:
-            self.fourier_sinogram_filtering_module = FourierFilteringModule(dimension, self.n_measurements, detector_size, device)
+            self.fourier_sinogram_filtering_module = FourierFilteringModule(dimension, self.n_measurements, detector_size, device, filter_name, training_mode)
 
     def dual_operation(self, primal:torch.Tensor, dual:torch.Tensor, input_sinogram:torch.Tensor) -> torch.Tensor:
         if self.dimension == 1:
@@ -315,7 +328,7 @@ class Iteration(nn.Module):
         # dual block
         dual = self.dual_operation(primal, dual, input_sinogram)
         if self.fourier_filtering:
-            return self.primal_operation(primal, self.fourier_sinogram_filtering_module(dual)), dual
+            dual = self.fourier_sinogram_filtering_module(dual)
         # primal block
         return self.primal_operation(primal, dual), dual
 
@@ -325,7 +338,8 @@ class LearnedPrimalDual(nn.Module):
                 odl_backend:ODLBackend,
                 n_primal:int, n_dual:int, n_iterations:int, n_filters_primal:int, n_filters_dual:int,
                 fourier_filtering:bool,
-                device:torch.device):
+                device:torch.device,
+                fourier_filter_name='', training_mode=False):
         super(LearnedPrimalDual, self).__init__()
         self.dimension = dimension
         self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm = odl_backend.get_pytorch_operators(device)
@@ -350,7 +364,8 @@ class LearnedPrimalDual(nn.Module):
                         self.n_measurements, self.detector_size,
                         n_primal, n_dual, n_filters_primal, n_filters_dual,
                         fourier_filtering,
-                        device) for i in range(self.n_iterations)
+                        device,
+                        fourier_filter_name, training_mode) for i in range(self.n_iterations)
                 }
             )
 

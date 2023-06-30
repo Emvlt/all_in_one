@@ -4,6 +4,9 @@ import torch
 import torch.nn as nn
 from torchvision.transforms import Compose
 
+def normalise(sample:torch.Tensor) -> torch.Tensor:
+    return (sample-sample.min()) / (sample.max()-sample.min())
+
 class TransfromTemplate(object):
     def __init__(self):
         pass
@@ -16,7 +19,7 @@ class Normalise(object):
         pass
 
     def __call__(self, sample:torch.Tensor) -> torch.Tensor:
-        return (sample-sample.min()) / (sample.max()-sample.min())
+        return normalise(sample)
 
 class ToFloat(object):
     def __init__(self):
