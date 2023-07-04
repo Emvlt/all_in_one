@@ -94,7 +94,8 @@ def infer_slice(
     elif inference_name == 'lpd':
         if dimension == 1:
             sinogram = torch.squeeze(sinogram, dim=1)
-        approximated_reconstruction, _ = inference_function(sinogram)
+        with torch.no_grad():
+            approximated_reconstruction, _ = inference_function(sinogram)
 
     elif inference_name == 'fourier_filtering':
         if dimension == 1:
