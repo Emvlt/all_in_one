@@ -10,7 +10,11 @@ class PyPlotImageWriter():
         self.path_to_images_folder.mkdir(parents=True, exist_ok=True)
 
     def write_image_tensor(self, x:torch.Tensor, image_name:str):
-        plt.matshow(x[0,0].detach().cpu())
+        x = x.detach().cpu()
+        ## unholy
+        while len(x.size()) != 2:
+            x = x[0]
+        plt.matshow(x)
         plt.axis('off')
         plt.savefig(self.path_to_images_folder.joinpath(image_name), bbox_inches='tight')
         plt.clf()
