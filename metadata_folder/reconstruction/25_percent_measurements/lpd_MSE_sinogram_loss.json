@@ -32,7 +32,7 @@
             "fourier_filtering":false,
             "load_path":"",
             "save_path":"lpd_MSE_sinogram_loss.pth",
-            "device_name":"cuda:1"
+            "device_name":"cuda:0"
         }
     },
 

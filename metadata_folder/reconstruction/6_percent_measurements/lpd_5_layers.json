@@ -3,9 +3,9 @@
 
     "dimension":1,
 
-    "experiment_folder_name":"25_percent_measurements",
+    "experiment_folder_name":"6_percent_measurements",
 
-    "run_name":"lpd",
+    "run_name":"lpd_5_layers",
 
     "training_dict":{
         "batch_size":16,
@@ -26,13 +26,13 @@
             "name":"lpd",
             "n_primal":1,
             "n_dual":1,
-            "lpd_n_iterations":1,
+            "lpd_n_iterations":5,
             "lpd_n_filters_primal":4,
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
             "load_path":"",
-            "save_path":"lpd.pth",
-            "device_name":"cuda:1"
+            "save_path":"lpd_5_layers.pth",
+            "device_name":"cuda:0"
         }
     },
 
@@ -46,7 +46,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":256
+            "shape":64
         },
         "detector_partition_dict":{
             "min_pt":-473,
