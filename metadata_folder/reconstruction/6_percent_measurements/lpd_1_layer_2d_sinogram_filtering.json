@@ -31,7 +31,7 @@
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
             "load_path":"",
-            "save_path":"lpd_1_layer.pth",
+            "save_path":"lpd_1_layer_2d_sinogram_filtering.pth",
             "device_name":"cuda:0"
         }
     },

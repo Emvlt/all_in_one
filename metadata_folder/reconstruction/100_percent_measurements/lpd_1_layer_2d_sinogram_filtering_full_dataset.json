@@ -3,19 +3,19 @@
 
     "dimension":2,
 
-    "experiment_folder_name":"100_percent_measurements",
+    "experiment_folder_name":"6_percent_measurements",
 
-    "run_name":"lpd_1_layer_2d_sinogram_filtering",
+    "run_name":"lpd_1_layer_2d_sinogram_filtering_full_dataset",
 
     "training_dict":{
         "batch_size":16,
         "training_proportion":0.8,
         "learning_rate":1e-4,
-        "n_epochs":50,
+        "n_epochs":1,
         "num_workers":2,
         "dose":1,
         "dual_loss_weighting":0,
-        "is_subset":true,
+        "is_subset":false,
         "subset":[88,143,223,325,470,559,624,772,893,1002],
         "reconstruction_loss":"MSE",
         "sinogram_loss":"MSE"
@@ -31,7 +31,7 @@
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
             "load_path":"",
-            "save_path":"lpd_1_layer_2d_sinogram_filtering.pth",
+            "save_path":"lpd_1_layer_2d_sinogram_filtering_full_dataset.pth",
             "device_name":"cuda:0"
         }
     },
@@ -46,7 +46,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":1024
+            "shape":64
         },
         "detector_partition_dict":{
             "min_pt":-473,
