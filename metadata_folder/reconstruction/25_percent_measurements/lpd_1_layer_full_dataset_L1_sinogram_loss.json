@@ -14,7 +14,7 @@
         "n_epochs":5,
         "num_workers":2,
         "dose":1,
-        "dual_loss_weighting":0,
+        "dual_loss_weighting":0.5,
         "is_subset":false,
         "subset":[88,143,223,325,470,559,624,772,893,1002],
         "reconstruction_loss":"MSE",
