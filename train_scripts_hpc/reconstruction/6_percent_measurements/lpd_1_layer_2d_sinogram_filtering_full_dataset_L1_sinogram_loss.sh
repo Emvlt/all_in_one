@@ -8,7 +8,7 @@
 
 #! sbatch directives begin here ###############################
 #! Name of the job:
-#SBATCH -J train_lpd_1_layer_2d_sinogram_filtering_full_dataset
+#SBATCH -J train_lpd_1_layer_2d_sinogram_filtering
 #! Which project should be charged (NB Wilkes2 projects end in '-GPU'):
 #SBATCH -A SCHONLIEB-SL3-GPU
 #! How many whole nodes should be allocated?
@@ -20,7 +20,7 @@
 #! Note that the job submission script will enforce no more than 32 cpus per GPU.
 #SBATCH --gres=gpu:1
 #! How much wallclock time will be required?
-#SBATCH --time=30:00:00
+#SBATCH --time=02:00:00
 #! What types of email messages do you wish to receive?
 #SBATCH --mail-type=NONE
 #! Uncomment this to prevent the job from being requeued (e.g. if
@@ -59,7 +59,7 @@ conda activate all_in_one
 application="/home/ev373/.conda/envs/all_in_one/bin/python"
 
 #! Run options for the application:
-options="experiences.py --platform hpc --metadata_path metadata_folder/reconstruction/100_percent_measurements/lpd_1_layer_2d_sinogram_filtering_full_dataset.json"
+options="experiences.py --platform hpc --metadata_path metadata_folder/reconstruction/6_percent_measurements/lpd_1_layer_2d_sinogram_filtering_full_dataset_L1_sinogram_loss.json"
 
 #! Work directory (i.e. where the job will run):
 workdir="/home/ev373/work/all_in_one"  # The value of SLURM_SUBMIT_DIR sets workdir to the directory
