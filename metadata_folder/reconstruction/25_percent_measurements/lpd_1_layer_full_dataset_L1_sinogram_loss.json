@@ -3,7 +3,7 @@
 
     "dimension":1,
 
-    "experiment_folder_name":"6_percent_measurements",
+    "experiment_folder_name":"25_percent_measurements",
 
     "run_name":"lpd_1_layer_full_dataset_L1_sinogram_loss",
 
@@ -14,7 +14,7 @@
         "n_epochs":10,
         "num_workers":2,
         "dose":1,
-        "dual_loss_weighting":0.5,
+        "dual_loss_weighting":0,
         "is_subset":false,
         "subset":[88,143,223,325,470,559,624,772,893,1002],
         "reconstruction_loss":"MSE",
@@ -46,7 +46,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":64
+            "shape":256
         },
         "detector_partition_dict":{
             "min_pt":-473,
