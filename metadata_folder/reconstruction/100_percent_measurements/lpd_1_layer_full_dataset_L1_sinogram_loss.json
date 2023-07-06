@@ -11,7 +11,7 @@
         "batch_size":16,
         "training_proportion":0.8,
         "learning_rate":1e-4,
-        "n_epochs":10,
+        "n_epochs":5,
         "num_workers":2,
         "dose":1,
         "dual_loss_weighting":0,
@@ -30,7 +30,7 @@
             "lpd_n_filters_primal":16,
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
-            "load_path":"",
+            "load_path":"lpd_1_layer_full_dataset_L1_sinogram_loss.pth",
             "save_path":"lpd_1_layer_full_dataset_L1_sinogram_loss.pth",
             "device_name":"cuda:0"
         }
