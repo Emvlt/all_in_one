@@ -18,7 +18,7 @@
         "is_subset":false,
         "subset":[88,143,223,325,470,559,624,772,893,1002],
         "reconstruction_loss":"MSE",
-        "sinogram_loss":"L1"
+        "sinogram_loss":"MSE"
     },
 
     "architecture_dict":{
