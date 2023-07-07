@@ -516,7 +516,7 @@ def train_reconstruction_network(
         device = reconstruction_device
         )
 
-    reconstruction_net = load_network(reconstruction_net, architecture_dict['reconstruction']['load_path'])
+    reconstruction_net = load_network(save_folder_path, reconstruction_net, architecture_dict['reconstruction']['load_path'])
 
     # reconstruction_net = torch.compile(reconstruction_net)
 

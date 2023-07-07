@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch
 from backends.odl import ODLBackend
 
-def load_network(network:torch.nn.Module, load_path:pathlib.Path | str):
+def load_network(models_load_path:pathlib.Path, network:torch.nn.Module, load_path, indent_level=None):
     if isinstance(load_path, str):
         load_path = pathlib.Path(load_path)
     elif isinstance(load_path, pathlib.Path):
@@ -12,11 +12,17 @@ def load_network(network:torch.nn.Module, load_path:pathlib.Path | str):
     else:
         raise TypeError(f'Wrong type for load_path argument {load_path}, must be str or pathlib.Path')
 
-    if load_path.is_file():
-        print(f'Loading model state_dict from {load_path}')
-        network.load_state_dict(torch.load(load_path))
+    model_load_path = models_load_path / load_path
+
+    offset = 0
+    if indent_level is not None:
+        offset  = indent_level
+
+    if model_load_path.is_file():
+        print('\t'*offset + f'Loading model state_dict from {model_load_path}') #type:ignore
+        network.load_state_dict(torch.load(model_load_path))
     else:
-        print(f'No file found at {load_path}, no initialisation')
+        print('\t'*offset + f'No file found at {model_load_path}, no initialisation') #type:ignore
     return network
 
 def weights_init(module:nn.Module):
@@ -242,7 +248,7 @@ class FilterModule(nn.Module):
         self.weight.requires_grad = training_mode
 
     def forward(self, x:torch.Tensor) -> torch.Tensor:
-        return torch.mul(x, self.weight).squeeze()
+        return torch.mul(x, self.weight)
 
 class FourierFilteringModule(nn.Module):
     def __init__(self, dimension:int, n_measurements:int, detector_size:int, device:torch.device, filter_name:str, training_mode:bool):
