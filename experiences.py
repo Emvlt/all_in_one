@@ -74,7 +74,7 @@ if __name__ == '__main__':
         log_dir = pathlib.Path(RUNS_PATH).joinpath(f'{pipeline}/{experiment_folder_name}/{run_name}')
     )
 
-    models_path = pathlib.Path(MODELS_PATH).joinpath(f'{pipeline}/{experiment_folder_name}')
+    models_path = pathlib.Path(MODELS_PATH)
 
     if pipeline == 'reconstruction':
         train_reconstruction_network(
