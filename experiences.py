@@ -53,13 +53,12 @@ if __name__ == '__main__':
     ## Dataset and Dataloader
     training_lidc_idri_dataset = LIDC_IDRI(
         DATASET_PATH,
-        metadata_dict['pipeline'],
+        str(pipeline),
         odl_backend,
         training_dict['training_proportion'],
         'training',
         training_dict['is_subset'],
         transform = transforms,
-        subset = training_dict['subset']
         )
     training_dataloader = DataLoader(
         training_lidc_idri_dataset,
@@ -68,10 +67,10 @@ if __name__ == '__main__':
         drop_last=True,
         num_workers=training_dict["num_workers"])
 
-    image_writer = PyPlotImageWriter(pathlib.Path(f'images/{pipeline}/{experiment_folder_name}/{run_name}'))
+    image_writer = PyPlotImageWriter(pathlib.Path(f'images')/ pipeline / experiment_folder_name / run_name)
 
     run_writer = SummaryWriter(
-        log_dir = pathlib.Path(RUNS_PATH).joinpath(f'{pipeline}/{experiment_folder_name}/{run_name}')
+        log_dir = pathlib.Path(RUNS_PATH) / pipeline / experiment_folder_name / run_name
     )
 
     models_path = pathlib.Path(MODELS_PATH)
