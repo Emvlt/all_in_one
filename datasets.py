@@ -75,14 +75,15 @@ class LIDC_IDRI(Dataset):
             )
 
         self.patient_indexs = list(self.patient_index_to_n_slices_dict.keys())
-        if patient_list is None:
+        if patient_list:
+            self.testing_patients_list:List[str] = patient_list #type:ignore
+
+        else:
             self.training_patients_list = self.patient_indexs[:self.n_patients_training]
             self.testing_patients_list = self.patient_indexs[self.n_patients_training:]
             assert len(self.patient_indexs) == len(self.training_patients_list) + len(self.testing_patients_list), print(
                 f'Len patients ids: {len(self.patient_indexs)}, \n len training patients {len(self.training_patients_list)}, \n len testing patients {len(self.testing_patients_list)}'
                 )
-        else:
-            self.testing_patients_list:List[str] = patient_list #type:ignore
 
         if verbose:
             print('Preparing patient list, this may take time....')
