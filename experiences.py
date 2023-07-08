@@ -19,7 +19,6 @@ if __name__ == '__main__':
     parser.add_argument('--platform', required=True)
     args = parser.parse_args()
 
-    print(f'Running code on {args.platform}')
     ## Unpacking paths
     paths_dict = dict(json.load(open('paths_dict.json')))[args.platform]
     MODELS_PATH = pathlib.Path(paths_dict['MODELS_PATH'])
@@ -28,9 +27,10 @@ if __name__ == '__main__':
 
     ## Unpacking metadata
     metadata_path = pathlib.Path(args.metadata_path)
-    pipeline = metadata_path.parent.parent
-    experiment_folder_name = metadata_path.parent
+    pipeline = metadata_path.parent.parent.stem
+    experiment_folder_name = metadata_path.parent.stem
     run_name = metadata_path.stem
+    print(f'Running {pipeline} pipeline for {experiment_folder_name} experiment folder: experience {run_name} running on {args.platform}')
 
     metadata_dict = dict(json.load(open(metadata_path)))
     training_dict = metadata_dict["training_dict"]
@@ -99,7 +99,7 @@ if __name__ == '__main__':
         )
 
     else:
-        raise ValueError(f'Wrong type value, must be fourier_filter, joint, sequential or end_to_end, not {args.type}') #type:ignore
+        raise ValueError(f'Wrong type value, must be fourier_filter, joint, sequential or end_to_end, not {pipeline}') #type:ignore
 
     t1 = datetime.now()
 
