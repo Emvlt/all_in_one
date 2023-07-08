@@ -26,7 +26,6 @@ def loss_name_to_loss_function(loss_function_name:str):
 
 
 def train_reconstruction_network(
-        dimension:int,
         odl_backend:ODLBackend,
         architecture_dict:Dict,
         training_dict:Dict,
@@ -37,24 +36,27 @@ def train_reconstruction_network(
         verbose=True
         ):
 
-    reconstruction_device = torch.device(architecture_dict['reconstruction']['device_name'])
+    reconstruction_dict = architecture_dict['reconstruction']
+    dimension = reconstruction_dict['dimension']
 
-    if architecture_dict['reconstruction']['name'] == 'lpd':
+    reconstruction_device = torch.device(reconstruction_dict['device_name'])
+
+    if reconstruction_dict['name'] == 'lpd':
             reconstruction_net = LearnedPrimalDual(
             dimension = dimension,
             odl_backend = odl_backend,
-            n_primal=architecture_dict['reconstruction']['n_primal'],
-            n_dual=architecture_dict['reconstruction']['n_dual'],
-            n_iterations = architecture_dict['reconstruction']['lpd_n_iterations'],
-            n_filters_primal = architecture_dict['reconstruction']['lpd_n_filters_primal'],
-            n_filters_dual = architecture_dict['reconstruction']['lpd_n_filters_dual'],
-            fourier_filtering = architecture_dict['reconstruction']['fourier_filtering'],
+            n_primal=reconstruction_dict['n_primal'],
+            n_dual=reconstruction_dict['n_dual'],
+            n_iterations = reconstruction_dict['lpd_n_iterations'],
+            n_filters_primal = reconstruction_dict['lpd_n_filters_primal'],
+            n_filters_dual = reconstruction_dict['lpd_n_filters_dual'],
+            fourier_filtering = reconstruction_dict['fourier_filtering'],
             device = reconstruction_device
         )
     else:
-        raise NotImplementedError(f"{architecture_dict['reconstruction']['name']} not implemented")
+        raise NotImplementedError(f"{reconstruction_dict['name']} not implemented")
 
-    reconstruction_net = load_network(save_folder_path, reconstruction_net, architecture_dict['reconstruction']['load_path'])
+    reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict['load_path'])
 
 
     reconstruction_loss = loss_name_to_loss_function(training_dict['reconstruction_loss'])
@@ -72,7 +74,7 @@ def train_reconstruction_network(
 
     reconstruction_model_save_path = pathlib.Path(save_folder_path)
     reconstruction_model_save_path.mkdir(exist_ok=True, parents=True)
-    reconstruction_model_file_save_path = reconstruction_model_save_path.joinpath(architecture_dict['reconstruction']['save_path'])
+    reconstruction_model_file_save_path = reconstruction_model_save_path.joinpath(reconstruction_dict['save_path'])
 
     for epoch in range(training_dict['n_epochs']):
         print(f"Training epoch {epoch} / {training_dict['n_epochs']}...")
@@ -116,7 +118,6 @@ def train_reconstruction_network(
         torch.save(reconstruction_net.state_dict(), reconstruction_model_file_save_path)
 
 def train_segmentation_network(
-        dimension:int,
         odl_backend:ODLBackend,
         architecture_dict:Dict,
         training_dict:Dict,
@@ -150,26 +151,29 @@ def train_segmentation_network(
         )
 
     if training_dict['reconstructed']:
+        ## Unpacking dict
+        reconstruction_dict = architecture_dict['reconstruction']
+        dimension = reconstruction_dict['dimension']
         ## Define reconstruction device
-        reconstruction_device = torch.device(architecture_dict['reconstruction']['device_name'])
+        reconstruction_device = torch.device(reconstruction_dict['device_name'])
 
         ## Load reconstruction Network
-        if architecture_dict['reconstruction']['name'] == 'lpd':
+        if reconstruction_dict['name'] == 'lpd':
             reconstruction_net = LearnedPrimalDual(
             dimension = dimension,
             odl_backend = odl_backend,
-            n_primal=architecture_dict['reconstruction']['n_primal'],
-            n_dual=architecture_dict['reconstruction']['n_dual'],
-            n_iterations = architecture_dict['reconstruction']['lpd_n_iterations'],
-            n_filters_primal = architecture_dict['reconstruction']['lpd_n_filters_primal'],
-            n_filters_dual = architecture_dict['reconstruction']['lpd_n_filters_dual'],
-            fourier_filtering = architecture_dict['reconstruction']['fourier_filtering'],
+            n_primal=reconstruction_dict['n_primal'],
+            n_dual=reconstruction_dict['n_dual'],
+            n_iterations = reconstruction_dict['lpd_n_iterations'],
+            n_filters_primal = reconstruction_dict['lpd_n_filters_primal'],
+            n_filters_dual = reconstruction_dict['lpd_n_filters_dual'],
+            fourier_filtering = reconstruction_dict['fourier_filtering'],
             device = reconstruction_device
         )
         else:
-            raise NotImplementedError(f"{architecture_dict['reconstruction']['name']} not implemented")
+            raise NotImplementedError(f"{reconstruction_dict['name']} not implemented")
 
-        reconstruction_net = load_network(save_folder_path, reconstruction_net, architecture_dict['reconstruction']['load_path'])
+        reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict['load_path'])
 
         reconstruction_net.eval()
         ## Define sinogram transform
@@ -188,7 +192,7 @@ def train_segmentation_network(
                 with torch.no_grad():
                     ## Re-sample
                     sinogram = odl_backend.get_sinogram(reconstruction)
-                    if dimension == 1:
+                    if dimension == 1: #type:ignore
                         sinogram = torch.squeeze(sinogram, dim=1)
                     sinogram = sinogram_transforms(sinogram) #type:ignore
                     ## Reconstruct

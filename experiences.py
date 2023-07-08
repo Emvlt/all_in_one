@@ -36,7 +36,6 @@ if __name__ == '__main__':
     training_dict = metadata_dict["training_dict"]
     scan_parameter_dict = metadata_dict["scan_parameter_dict"]
     architecture_dict = metadata_dict['architecture_dict']
-    dimension = metadata_dict['dimension']
 
     ## Sanity checks
     check_metadata(metadata_dict)
@@ -81,7 +80,6 @@ if __name__ == '__main__':
 
     if pipeline == 'reconstruction':
         train_reconstruction_network(
-            dimension=dimension,
             odl_backend=odl_backend,
             architecture_dict = architecture_dict,
             training_dict = training_dict,
@@ -92,7 +90,6 @@ if __name__ == '__main__':
         )
     elif pipeline == 'segmentation':
         train_segmentation_network(
-            dimension=dimension,
             odl_backend=odl_backend,
             architecture_dict = architecture_dict,
             training_dict = training_dict,
