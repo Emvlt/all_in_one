@@ -375,7 +375,7 @@ class LearnedPrimalDual(nn.Module):
                 }
             )
 
-    def forward(self, input_sinogram:torch.Tensor, just_infer=False) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
+    def forward(self, input_sinogram:torch.Tensor, just_infer=False) -> tuple[torch.Tensor, torch.Tensor]:
 
         primal = torch.zeros((input_sinogram.size()[0], self.n_primal) + self.operator_domain_shape).to(self.device) #type:ignore
 
@@ -392,7 +392,7 @@ class LearnedPrimalDual(nn.Module):
             primal, dual = self.iteration_modules[f'iteration_{i}'](primal, dual, input_sinogram)
 
         if just_infer:
-            return primal[:,0:1]
+            return primal[:,0:1] #type:ignore
         else:
             if self.dimension == 1 :
                 return primal[:,0:1], dual[:,:self.n_measurements]
