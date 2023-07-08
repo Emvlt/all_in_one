@@ -1,5 +1,6 @@
 import argparse
 import pathlib
+from datetime import datetime
 
 import json
 from torchvision.transforms import Compose
@@ -76,6 +77,8 @@ if __name__ == '__main__':
 
     models_path = pathlib.Path(MODELS_PATH)
 
+    t0 = datetime.now()
+
     if pipeline == 'reconstruction':
         train_reconstruction_network(
             dimension=dimension,
@@ -101,3 +104,8 @@ if __name__ == '__main__':
 
     else:
         raise ValueError(f'Wrong type value, must be fourier_filter, joint, sequential or end_to_end, not {args.type}') #type:ignore
+
+    t1 = datetime.now()
+
+    print(f'Elapsed Time : {t1-t0}')
+    print('Training Finished \u2713 ')

@@ -115,8 +115,6 @@ def train_reconstruction_network(
 
         torch.save(reconstruction_net.state_dict(), reconstruction_model_file_save_path)
 
-    print('Training Finished \u2713 ')
-
 def train_segmentation_network(
         dimension:int,
         odl_backend:ODLBackend,
@@ -216,4 +214,3 @@ def train_segmentation_network(
 
         torch.save(segmentation_net.state_dict(), segmentation_model_file_save_path)
 
-    print('Training Finished \u2713 ')
