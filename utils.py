@@ -80,15 +80,50 @@ def check_scan_parameter_dict(scan_parameter_dict:Dict):
     assert 'det_radius' in scan_parameter_dict['geometry_dict'], 'det_radius not provided in geometry dictionary'
     assert 'beam_geometry' in scan_parameter_dict['geometry_dict'], 'beam_geometry not provided in geometry dictionary'
 
+def check_training_dict(training_dict:Dict):
+    assert "training_proportion" in training_dict.keys(), "provide training set proportion"
+    check_float('training_proportion', training_dict['training_proportion'])
+
+    assert "num_workers" in training_dict.keys(), "provide number of dataloader workers"
+    check_integer('num_workers', training_dict['num_workers'])
+
+    assert "is_subset" in training_dict.keys(), "provide is_subset boolean argument"
+    check_boolean('is_subset', training_dict['is_subset'])
+
+    assert "batch_size" in training_dict.keys(), "provide batch size"
+    check_integer('batch_size', training_dict['batch_size'])
+
+    assert "learning_rate" in training_dict.keys(), "provide learning rate"
+    check_float('learning_rate', training_dict['learning_rate'])
+
+    assert "n_epochs" in training_dict.keys(), "provide number of training epochs"
+    check_integer('n_epochs', training_dict['n_epochs'])
+
+    if training_dict['is_subset']:
+        assert "subset" in training_dict.keys(), "provide subset list argument"
+        check_list('subset', training_dict['subset'])
+
 def check_reconstruction_network_consistency(reconstruction_dict:Dict, training_dict:Dict):
-    assert 'device_name' in reconstruction_dict.keys()
+    assert 'device_name' in reconstruction_dict.keys(), 'Specify reconstruction device name'
+
+    assert "train" in reconstruction_dict.keys(), 'Specify training mode'
+    check_boolean('train', reconstruction_dict['train'])
 
     if reconstruction_dict['name']  == 'lpd':
-        assert 'dual_loss_weighting' in training_dict.keys(), 'Provide dual_loss_weighting argument to training_dict'
-        assert 0<=training_dict['dual_loss_weighting'] <= 1, f"Dual loss must be in ]0,1], currently is {training_dict['dual_loss_weighting']}"
+        assert 'dimension' in reconstruction_dict.keys(), 'Specify dimension of LPD architecture'
 
-        assert "reconstruction_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
-        assert "sinogram_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
+        if reconstruction_dict['train']:
+            assert 'dual_loss_weighting' in training_dict.keys(), 'Provide dual_loss_weighting argument to training_dict'
+            assert 0<=training_dict['dual_loss_weighting'] <= 1, f"Dual loss must be in ]0,1], currently is {training_dict['dual_loss_weighting']}"
+
+            assert "reconstruction_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
+            assert "sinogram_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
+
+            assert 'save_path' in reconstruction_dict.keys(), 'specify save path for reconstruction network'
+
+        else:
+            assert 'load_path' in reconstruction_dict.keys(), 'specify load path for reconstruction network'
+
 
         assert 'n_primal' in reconstruction_dict.keys(), 'Specify number of lpd primal channels'
         check_integer('n_primal', reconstruction_dict['n_primal'])
@@ -108,24 +143,12 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, training_
         assert 'fourier_filtering' in reconstruction_dict.keys()
         check_boolean('fourier_filtering', reconstruction_dict['fourier_filtering'])
 
-        assert "batch_size" in training_dict.keys(), "provide batch size"
-        check_integer('batch_size', training_dict['batch_size'])
-
-        assert "learning_rate" in training_dict.keys(), "provide learning rate"
-        check_float('learning_rate', training_dict['learning_rate'])
-
-        assert "n_epochs" in training_dict.keys(), "provide number of training epochs"
-        check_integer('n_epochs', training_dict['n_epochs'])
-
         if reconstruction_dict['fourier_filtering']:
             assert 'filter_name' in reconstruction_dict.keys(), 'Provide filter_name str argument'
             check_string('filter_name', reconstruction_dict['filter_name'])
 
             assert 'train_filter' in reconstruction_dict.keys(), 'Provide train_filter boolean argument'
             check_boolean('train_filter', reconstruction_dict['train_filter'])
-
-        assert 'load_path' in reconstruction_dict.keys(), 'specify load path for reconstruction network'
-        assert 'save_path' in reconstruction_dict.keys(), 'specify save path for reconstruction network'
 
     elif reconstruction_dict['name'] =='filtered_backprojection':
         assert 'filter_name' in reconstruction_dict.keys(), 'Provide filter_name str argument'
@@ -144,70 +167,63 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, training_
     else:
         raise NotImplementedError(f"Reconstruction network {reconstruction_dict['name']} not implemented.")
 
-def consistency_checks(metadata_dict:Dict):
-    assert "pipeline" in metadata_dict.keys(), 'Provide pipeline argument to metadata'
-    architecture_dict = metadata_dict['architecture_dict']
-    training_dict = metadata_dict['training_dict']
+def check_segmentation_network_consistency(segmentation_dict:Dict, training_dict:Dict):
+    assert 'device_name' in segmentation_dict.keys(), 'Specify segmentation device name'
 
-    if metadata_dict["pipeline"] == 'reconstruction':
-        assert 'dose' in training_dict.keys(), 'Provide dose argument to training_dict'
-        assert 0< training_dict['dose'] <= 1, f"Dose must be in ]0,1], currently is {training_dict['dose']}"
+    assert "train" in segmentation_dict.keys(), 'Specify training mode channels'
+    check_boolean('train', segmentation_dict['train'])
 
-        assert 'reconstruction' in architecture_dict.keys(), 'Specify reconstruction network'
-        check_dict('reconstruction', architecture_dict['reconstruction'])
+    if segmentation_dict['name']  == 'Unet':
+        if segmentation_dict['train']:
+            assert "segmentation_loss" in training_dict.keys(), 'Provide segmentation_loss argument to the training_dict'
 
-        reconstruction_dict = architecture_dict['reconstruction']
-        check_reconstruction_network_consistency(reconstruction_dict, training_dict)
+            assert 'save_path' in segmentation_dict.keys(), 'specify save path for reconstruction network'
+
+        else:
+            assert 'load_path' in segmentation_dict.keys(), 'specify load path for reconstruction network'
+
+
+        assert 'Unet_input_channels' in segmentation_dict.keys(), 'Specify number of Unet input channels'
+        check_integer('Unet_input_channels', segmentation_dict['Unet_input_channels'])
+
+        assert 'Unet_output_channels' in segmentation_dict.keys(), 'Specify number of Unet output channels'
+        check_integer('Unet_output_channels', segmentation_dict['Unet_output_channels'])
+
+        assert 'Unet_n_filters' in segmentation_dict.keys(), 'Specify number of Unet filters'
+        check_integer('Unet_n_filters', segmentation_dict['Unet_n_filters'])
 
     else:
-        raise NotImplementedError (f'Consistency checks not implemented for {metadata_dict["pipeline"]}')
+        raise NotImplementedError(f"Segmentation network {segmentation_dict['name']} not implemented.")
 
-def check_training_dict(training_dict:Dict, pipeline:str):
-    assert "training_proportion" in training_dict.keys(), "provide training set proportion"
-    check_float('training_proportion', training_dict['training_proportion'])
+def check_architecture_consistency(architecture_name:str, metadata_dict:Dict, verbose=False):
+    architecture_dict = metadata_dict['architecture_dict']
+    if architecture_name in ['reconstruction', 'segmentation']:
+        assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
+        check_training_dict(metadata_dict['training_dict'])
+        training_dict = metadata_dict['training_dict']
 
-    assert "num_workers" in training_dict.keys(), "provide number of dataloader workers"
-    check_integer('num_workers', training_dict['num_workers'])
+        if architecture_name == 'reconstruction':
+            if verbose:print('Checking reconstruction network...')
+            check_reconstruction_network_consistency(architecture_dict[architecture_name], training_dict)
 
-    assert "is_subset" in training_dict.keys(), "provide is_subset boolean argument"
-    check_boolean('is_subset', training_dict['is_subset'])
+        elif architecture_name == 'segmentation':
+            if verbose:print('Checking segmentation network...')
+            check_segmentation_network_consistency(architecture_dict[architecture_name], training_dict)
+    else:
+        raise NotImplementedError (f'Consistency checks not implemented for architecture {architecture_name}')
 
-    if training_dict['is_subset']:
-        assert "subset" in training_dict.keys(), "provide subset list argument"
-        check_list('subset', training_dict['subset'])
-
-def check_metadata(metadata_dict:Dict):
-    try:
+def check_metadata(metadata_dict:Dict, verbose = True):
+    if verbose:
         print('Checking metadata type and parameters consistency...')
 
-        assert 'pipeline' in metadata_dict.keys(), 'Provide pipeline string value: joint, sequential, end_to_end'
-        check_string('pipeline', metadata_dict['pipeline'])
+    assert 'architecture_dict' in metadata_dict.keys(), 'Provide architecture dictionnary'
 
-        assert 'dimension' in metadata_dict.keys(), 'Provide dimension parameter'
-        check_integer('dimension', metadata_dict['dimension'])
+    for architecture_name in metadata_dict['architecture_dict'].keys():
+        check_architecture_consistency(architecture_name, metadata_dict, verbose)
 
-        assert 'experiment_folder_name' in metadata_dict.keys(), 'Provide experiment_folder_name string value'
-        check_string('experiment_folder_name', metadata_dict['experiment_folder_name'])
-
-        assert 'run_name' in metadata_dict.keys(), 'Provide run_name string value'
-        check_string('run_name', metadata_dict['run_name'])
-
-        assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
-        check_training_dict(metadata_dict['training_dict'], metadata_dict['pipeline'])
-
-        assert 'scan_parameter_dict' in metadata_dict.keys(), 'Provide scan parameter dictionnary'
-        check_scan_parameter_dict(metadata_dict['scan_parameter_dict'])
-
-        assert 'architecture_dict' in metadata_dict.keys(), 'Provide architecture dictionnary'
-
-        consistency_checks(metadata_dict)
-
+    if verbose:
         print("Metadata sanity checks passed \u2713 ")
 
-    except KeyError as error_message:
-        return error_message
 
-    except AssertionError as error_message:
-        return error_message
 
 

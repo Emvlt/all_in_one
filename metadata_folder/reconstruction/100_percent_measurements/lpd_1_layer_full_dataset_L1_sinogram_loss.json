@@ -1,22 +1,13 @@
 {
-    "pipeline":"reconstruction",
-
-    "dimension":1,
-
-    "experiment_folder_name":"100_percent_measurements",
-
-    "run_name":"lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_3_5",
-
     "training_dict":{
         "batch_size":16,
         "training_proportion":0.8,
-        "learning_rate":1e-4,
-        "n_epochs":3,
+        "learning_rate":5e-5,
+        "n_epochs":4,
         "num_workers":2,
         "dose":1,
         "dual_loss_weighting":0.5,
         "is_subset":false,
-        "subset":[88,143,223,325,470,559,624,772,893,1002],
         "reconstruction_loss":"MSE",
         "sinogram_loss":"L1"
     },
@@ -24,14 +15,16 @@
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
+            "train":true,
+            "dimension":1,
             "n_primal":1,
             "n_dual":1,
             "lpd_n_iterations":1,
             "lpd_n_filters_primal":16,
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
-            "load_path":"lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_0_2.pth",
-            "save_path":"lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_3_5.pth",
+            "load_path":"lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_3_5.pth",
+            "save_path":"lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_6_9.pth",
             "device_name":"cuda:0"
         }
     },

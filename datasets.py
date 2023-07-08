@@ -34,7 +34,9 @@ class LIDC_IDRI(Dataset):
             mode:str,
             is_subset: bool,
             transform=None,
-            subset=[]
+            subset=[],
+            verbose=False,
+            patient_list=False
             ):
 
         ## Defining the path to data
@@ -73,25 +75,29 @@ class LIDC_IDRI(Dataset):
             )
 
         self.patient_indexs = list(self.patient_index_to_n_slices_dict.keys())
-        self.training_patients_list = self.patient_indexs[:self.n_patients_training]
-        self.testing_patients_list = self.patient_indexs[self.n_patients_training:]
-        assert len(self.patient_indexs) == len(self.training_patients_list) + len(self.testing_patients_list), print(
-            f'Len patients ids: {len(self.patient_indexs)}, \n len training patients {len(self.training_patients_list)}, \n len testing patients {len(self.testing_patients_list)}'
-            )
+        if patient_list is None:
+            self.training_patients_list = self.patient_indexs[:self.n_patients_training]
+            self.testing_patients_list = self.patient_indexs[self.n_patients_training:]
+            assert len(self.patient_indexs) == len(self.training_patients_list) + len(self.testing_patients_list), print(
+                f'Len patients ids: {len(self.patient_indexs)}, \n len training patients {len(self.training_patients_list)}, \n len testing patients {len(self.testing_patients_list)}'
+                )
+        else:
+            self.testing_patients_list:List[str] = patient_list #type:ignore
 
-        print('Preparing patient list, this may take time....')
+        if verbose:
+            print('Preparing patient list, this may take time....')
         if self.mode == 'training':
             self.slice_index_to_patient_index_list = self.get_slice_index_to_patient_index_list(self.training_patients_list)
             self.patient_index_to_first_index_dict = self.get_patient_index_to_first_index_dict(self.training_patients_list)
 
         elif self.mode == 'testing':
-            self.slice_index_to_patient_index_list = self.get_slice_index_to_patient_index_list(self.testing_patients_list)
-            self.patient_index_to_first_index_dict = self.get_patient_index_to_first_index_dict(self.testing_patients_list)
+            self.slice_index_to_patient_index_list = self.get_slice_index_to_patient_index_list(self.testing_patients_list) #type:ignore
+            self.patient_index_to_first_index_dict = self.get_patient_index_to_first_index_dict(self.testing_patients_list) #type:ignore
 
         else:
             raise NotImplementedError(f'mode {self.mode} not implemented, try training or testing')
-
-        print(f'Patient lists ready for {self.mode} dataset')
+        if verbose:
+            print(f'Patient lists ready for {self.mode} dataset')
 
     def get_patient_slices_list(self, patient_index:str) -> List:
         assert patient_index in self.patient_index_to_n_slices_dict, f'Patient Id {patient_index} not in {self.patient_index_to_n_slices_dict}'

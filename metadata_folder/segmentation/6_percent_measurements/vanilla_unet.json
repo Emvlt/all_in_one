@@ -1,37 +1,38 @@
 {
-    "pipeline":"reconstruction",
-
-    "dimension":1,
-
-    "experiment_folder_name":"100_percent_measurements",
-
-    "run_name":"lpd_1_layer_full_dataset",
-
     "training_dict":{
         "batch_size":16,
         "training_proportion":0.8,
         "learning_rate":1e-4,
-        "n_epochs":1,
+        "n_epochs":3,
         "num_workers":2,
         "dose":1,
-        "dual_loss_weighting":0,
         "is_subset":false,
         "subset":[88,143,223,325,470,559,624,772,893,1002],
-        "reconstruction_loss":"MSE",
-        "sinogram_loss":"MSE"
+        "segmentation_loss":"BCE"
     },
 
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
+            "dimension":1,
+            "train":false,
             "n_primal":1,
             "n_dual":1,
             "lpd_n_iterations":1,
-            "lpd_n_filters_primal":4,
+            "lpd_n_filters_primal":16,
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
-            "load_path":"",
-            "save_path":"lpd_1_layer_full_dataset.pth",
+            "load_path":"reconstruction/6_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_final.pth",
+            "device_name":"cuda:0"
+        },
+        "segmentation":{
+            "name":"Unet",
+            "train":true,
+            "Unet_input_channels":1,
+            "Unet_output_channels":2,
+            "Unet_n_filters":16,
+            "load_path":"vanilla_unet.pth",
+            "save_path":"vanilla_unet.pth",
             "device_name":"cuda:0"
         }
     },
@@ -46,7 +47,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":1024
+            "shape":64
         },
         "detector_partition_dict":{
             "min_pt":-473,
@@ -60,5 +61,4 @@
         }
 
     }
-
 }

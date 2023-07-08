@@ -2,7 +2,7 @@ import unittest
 import pathlib
 import json
 
-from utils import consistency_checks
+from utils import check_metadata
 
 def recursively_check_metadata(current_path:pathlib.Path):
     for child_path in current_path.glob('*'):
@@ -12,7 +12,7 @@ def recursively_check_metadata(current_path:pathlib.Path):
             with open(child_path, 'rb') as f:   # will close() when we leave this block
                     metadata_dict = json.load(f)
             print(f'Checking {child_path}')
-            consistency_checks(metadata_dict)
+            check_metadata(metadata_dict)
 
 class TestMetadata(unittest.TestCase):
     def test_metadata_files_up_to_date(self):

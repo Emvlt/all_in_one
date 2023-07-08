@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter #type:ignore
 
 from datasets import LIDC_IDRI
 from backends.odl import ODLBackend
-from train_functions import train_reconstruction_network
+from train_functions import train_reconstruction_network, train_segmentation_network
 from utils import check_metadata, PyPlotImageWriter
 from transforms import Normalise, ToFloat # type:ignore
 
@@ -26,10 +26,12 @@ if __name__ == '__main__':
     DATASET_PATH = pathlib.Path(paths_dict['DATASET_PATH'])
 
     ## Unpacking metadata
-    metadata_dict = dict(json.load(open(args.metadata_path)))
-    pipeline = metadata_dict['pipeline']
-    run_name = metadata_dict["run_name"]
-    experiment_folder_name = metadata_dict["experiment_folder_name"]
+    metadata_path = pathlib.Path(args.metadata_path)
+    pipeline = metadata_path.parent.parent
+    experiment_folder_name = metadata_path.parent
+    run_name = metadata_path.stem
+
+    metadata_dict = dict(json.load(open(metadata_path)))
     training_dict = metadata_dict["training_dict"]
     scan_parameter_dict = metadata_dict["scan_parameter_dict"]
     architecture_dict = metadata_dict['architecture_dict']
@@ -76,6 +78,17 @@ if __name__ == '__main__':
 
     if pipeline == 'reconstruction':
         train_reconstruction_network(
+            dimension=dimension,
+            odl_backend=odl_backend,
+            architecture_dict = architecture_dict,
+            training_dict = training_dict,
+            train_dataloader = training_dataloader,
+            image_writer = image_writer,
+            run_writer = run_writer,
+            save_folder_path = models_path
+        )
+    elif pipeline == 'segmentation':
+        train_segmentation_network(
             dimension=dimension,
             odl_backend=odl_backend,
             architecture_dict = architecture_dict,
