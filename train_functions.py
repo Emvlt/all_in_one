@@ -199,7 +199,7 @@ def train_segmentation_network(
 
     for epoch in range(training_dict['n_epochs']):
         print(f"Training epoch {epoch} / {training_dict['n_epochs']}...")
-        for index, data in enumerate(tqdm(train_dataloader)):
+        for index, data in enumerate(train_dataloader):
             reconstruction = data[0].to(segmentation_device)
             mask = data[-1].to(segmentation_device)
             if training_dict['reconstructed']:
