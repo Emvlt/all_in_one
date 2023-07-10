@@ -232,6 +232,7 @@ def train_segmentation_network(
                     print(f'\n Metrics at step {index} of epoch {epoch}')
                     print(f'Image BCE Loss : {loss_segmentation.item()}')
                 run_writer.add_scalar(f'Image BCE Loss', loss_segmentation.item(), global_step=index+epoch*train_dataloader.__len__())
+                image_writer.write_image_tensor(reconstruction, 'current_reconstruction.jpg')
                 image_writer.write_image_tensor(approximated_segmentation, 'current_segmentation.jpg')
                 image_writer.write_image_tensor(mask, 'target_segmentation.jpg')
 

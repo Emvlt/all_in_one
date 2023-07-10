@@ -361,6 +361,8 @@ class LearnedPrimalDual(nn.Module):
         else:
             raise ValueError
         self.detector_size = self.odl_backend.detector_partition_dict['shape']
+        self.adjoint_domain_shape = [self.n_measurements, self.detector_size]
+
         self.device = device
         self.n_primal = n_primal
         self.n_dual = n_dual
@@ -379,14 +381,13 @@ class LearnedPrimalDual(nn.Module):
             )
 
     def forward(self, input_sinogram:torch.Tensor, just_infer=False) -> tuple[torch.Tensor, torch.Tensor]:
-
-        primal = torch.zeros((input_sinogram.size()[0], self.n_primal) + self.operator_domain_shape).to(self.device) #type:ignore
+        primal = torch.zeros([input_sinogram.size()[0], self.n_primal] + self.operator_domain_shape).to(self.device) #type:ignore
 
         if self.dimension == 1:
             dual = torch.zeros(input_sinogram.size()[0], self.n_dual*self.adjoint_domain_shape[0], self.adjoint_domain_shape[1]).to(self.device) #type:ignore
 
         elif self.dimension == 2:
-            dual = torch.zeros((input_sinogram.size()[0], self.n_dual) + self.adjoint_domain_shape).to(self.device) #type:ignore
+            dual = torch.zeros([input_sinogram.size()[0], self.n_dual] + self.adjoint_domain_shape).to(self.device) #type:ignore
 
         else:
             raise ValueError
