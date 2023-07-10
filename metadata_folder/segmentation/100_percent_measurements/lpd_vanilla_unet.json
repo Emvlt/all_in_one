@@ -52,7 +52,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":64
+            "shape":1024
         },
         "detector_partition_dict":{
             "min_pt":-473,
