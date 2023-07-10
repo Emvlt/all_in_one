@@ -9,7 +9,7 @@
     "training_dict":{
         "batch_size":16,
         "learning_rate":1e-4,
-        "n_epochs":10,
+        "n_epochs":4,
         "num_workers":2,
         "segmentation_loss":"BCE",
         "reconstructed":true
@@ -30,7 +30,7 @@
             "Unet_output_channels":2,
             "Unet_n_filters":16,
             "load_path":"segmentation/25_percent_measurements/ramp_filter_vanilla_unet.pth",
-            "save_path":"segmentation/25_percent_measurements/ramp_filter_vanilla_unet.pth",
+            "save_path":"segmentation/25_percent_measurements/ramp_filter_vanilla_unet_epochs_0_3.pth",
             "device_name":"cuda:0"
         }
     },
