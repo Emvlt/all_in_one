@@ -1,14 +1,19 @@
 {
+    "data_feeding_dict":{
+        "dataset_name":"LIDC-IDRI",
+        "train":true,
+        "training_proportion":0.8,
+        "is_subset":false
+    },
+
     "training_dict":{
         "batch_size":16,
-        "training_proportion":0.8,
         "learning_rate":1e-4,
         "n_epochs":3,
         "num_workers":2,
         "dose":1,
-        "is_subset":false,
-        "subset":[88,143,223,325,470,559,624,772,893,1002],
-        "segmentation_loss":"BCE"
+        "segmentation_loss":"BCE",
+        "reconstructed":true
     },
 
     "architecture_dict":{
@@ -22,7 +27,7 @@
             "lpd_n_filters_primal":16,
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
-            "load_path":"reconstruction/25_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_final.pth",
+            "load_path":"reconstruction/100_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_final.pth",
             "device_name":"cuda:0"
         },
         "segmentation":{
@@ -31,8 +36,8 @@
             "Unet_input_channels":1,
             "Unet_output_channels":2,
             "Unet_n_filters":16,
-            "load_path":"vanilla_unet.pth",
-            "save_path":"vanilla_unet.pth",
+            "load_path":"segmentation/100_percent_measurements/lpd_vanilla_unet.pth",
+            "save_path":"segmentation/100_percent_measurements/lpd_vanilla_unet.pth",
             "device_name":"cuda:0"
         }
     },

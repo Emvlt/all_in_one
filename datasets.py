@@ -31,12 +31,12 @@ class LIDC_IDRI(Dataset):
             pipeline:str,
             backend:ODLBackend,
             training_proportion:float,
-            mode:str,
+            training:bool,
             is_subset: bool,
             transform=None,
             subset=[],
             verbose=False,
-            patient_list=False
+            patient_list=[]
             ):
 
         ## Defining the path to data
@@ -48,7 +48,7 @@ class LIDC_IDRI(Dataset):
         self.pipeline = pipeline
         self.backend = backend
         self.training_proportion = training_proportion
-        self.mode = mode
+        self.training = training
         ## Subset is either a boolean with False value OR a List of patient Ids
         self.is_subset = is_subset
         self.transform = transform
@@ -75,30 +75,29 @@ class LIDC_IDRI(Dataset):
             )
 
         self.patient_indexs = list(self.patient_index_to_n_slices_dict.keys())
-        if patient_list:
-            self.testing_patients_list:List[str] = patient_list #type:ignore
-
-        else:
+        if len(patient_list)==0:
             self.training_patients_list = self.patient_indexs[:self.n_patients_training]
             self.testing_patients_list = self.patient_indexs[self.n_patients_training:]
             assert len(self.patient_indexs) == len(self.training_patients_list) + len(self.testing_patients_list), print(
                 f'Len patients ids: {len(self.patient_indexs)}, \n len training patients {len(self.training_patients_list)}, \n len testing patients {len(self.testing_patients_list)}'
                 )
 
+        else:
+            self.testing_patients_list:List[str] = patient_list #type:ignore
+
         if verbose:
             print('Preparing patient list, this may take time....')
-        if self.mode == 'training':
+
+        if self.training:
             self.slice_index_to_patient_index_list = self.get_slice_index_to_patient_index_list(self.training_patients_list)
             self.patient_index_to_first_index_dict = self.get_patient_index_to_first_index_dict(self.training_patients_list)
 
-        elif self.mode == 'testing':
+        else:
             self.slice_index_to_patient_index_list = self.get_slice_index_to_patient_index_list(self.testing_patients_list) #type:ignore
             self.patient_index_to_first_index_dict = self.get_patient_index_to_first_index_dict(self.testing_patients_list) #type:ignore
 
-        else:
-            raise NotImplementedError(f'mode {self.mode} not implemented, try training or testing')
         if verbose:
-            print(f'Patient lists ready for {self.mode} dataset')
+            print(f'Patient lists ready')
 
     def get_patient_slices_list(self, patient_index:str) -> List:
         assert patient_index in self.patient_index_to_n_slices_dict, f'Patient Id {patient_index} not in {self.patient_index_to_n_slices_dict}'
@@ -143,9 +142,9 @@ class LIDC_IDRI(Dataset):
         return torch.from_numpy(backend.get_filtered_backprojection(backend.operator(np.load(file_path)), 'Hann')).unsqueeze(0) #type:ignore
 
     def get_mask_tensor(self, patient_index:str, slice_index:int) -> torch.Tensor:
+        mask = torch.zeros((512,512), dtype=torch.bool)
         ## First, assess if the slice has a nodule
         try:
-            mask = torch.zeros((512,512), dtype=torch.bool)
             all_nodules_dict:Dict = self.patients_masks_dictionary[patient_index][f'{slice_index}']
             for nodule_index, nodule_annotations_list in all_nodules_dict.items():
                 ## If a nodule was not segmented by all the clinicians, the other annotations should not always be seen
@@ -154,17 +153,15 @@ class LIDC_IDRI(Dataset):
 
                 annotation = random.choice(nodule_annotations_list)
                 if annotation == '':
-                    # Hopefully, that exists the try to return an empty mask
                     nodule_mask = torch.zeros((512,512), dtype=torch.bool)
                 else:
                     path_to_mask = self.path_to_processed_dataset.joinpath(f'{patient_index}/mask_{slice_index}_nodule_{nodule_index}_annotation_{annotation}.npy')
-                    print(path_to_mask)
                     nodule_mask = torch.from_numpy(np.load(path_to_mask))
 
                 mask = mask.bitwise_or(nodule_mask)
 
         except KeyError:
-            mask = torch.zeros((512,512), dtype=torch.bool)
+            pass
         # byte inversion
         mask = mask.int()
         background = 1- mask
@@ -194,8 +191,8 @@ class LIDC_IDRI(Dataset):
             reconstruction_tensor = self.get_reconstruction_tensor(file_path)
             mask_tensor = self.get_mask_tensor(patient_index, slice_index)
             if self.transform is not None:
-                reconstruction_tensor = self.transform['reconstruction_transforms'](reconstruction_tensor, mask_tensor)
-                mask_tensor = self.transform['mask_transforms'](reconstruction_tensor, mask_tensor)
+                reconstruction_tensor = self.transform['reconstruction_transforms'](reconstruction_tensor)
+                mask_tensor = self.transform['mask_transforms'](mask_tensor)
             return reconstruction_tensor, mask_tensor
 
         elif self.pipeline == "reconstruction" or self.pipeline=="fourier_filter":

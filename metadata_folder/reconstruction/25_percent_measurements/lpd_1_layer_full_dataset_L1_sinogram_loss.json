@@ -1,13 +1,18 @@
 {
+    "data_feeding_dict":{
+        "dataset_name":"LIDC-IDRI",
+        "train":true,
+        "training_proportion":0.8,
+        "is_subset":false
+    },
+
     "training_dict":{
         "batch_size":16,
-        "training_proportion":0.8,
         "learning_rate":5e-5,
         "n_epochs":4,
         "num_workers":2,
         "dose":1,
         "dual_loss_weighting":0.5,
-        "is_subset":false,
         "reconstruction_loss":"MSE",
         "sinogram_loss":"L1"
     },

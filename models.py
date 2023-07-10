@@ -195,7 +195,7 @@ class UpModule(nn.Module):
         return self.l_relu(self.conv2(torch.cat((x_1, skp_connection), 1)))
 
 class Unet(nn.Module):
-    def __init__(self, dimension:int, n_channels_input:int, n_channels_output:int, n_filters:int):
+    def __init__(self, dimension:int, n_channels_input:int, n_channels_output:int, n_filters:int, regression=True):
         super(Unet, self).__init__()
         # Initialize neural network blocks.
         self.conv1 = InceptionLayer(dimension, n_channels_input, n_filters, n_filters)
@@ -213,6 +213,10 @@ class Unet(nn.Module):
         self.conv3 = InceptionLayer(dimension, n_filters + n_channels_input, 2*n_channels_output, n_filters)
         self.conv4 = InceptionLayer(dimension,2*n_channels_output, n_channels_output, n_filters)
         self.l_relu = nn.LeakyReLU(negative_slope=0.1)
+        if regression:
+            self.last_layer = self.l_relu
+        else:
+            self.last_layer = nn.Sigmoid()
 
     def forward(self, input_tensor :torch.Tensor):
         s_0  = self.l_relu(self.conv1(input_tensor))
@@ -227,7 +231,7 @@ class Unet(nn.Module):
         u_3 = self.up3(u_2, s_3)
         u_4 = self.up4(u_3, s_2)
         u_5 = self.up5(u_4, s_1)
-        return self.l_relu(self.conv4(self.l_relu(self.conv3(torch.cat((u_5, input_tensor), 1)))))
+        return self.last_layer(self.conv4(self.l_relu(self.conv3(torch.cat((u_5, input_tensor), 1)))))
 
 class FilterModule(nn.Module):
     def __init__(self, dimension:int, detector_size:int, filter_name:str,std:float, device:torch.device, training_mode=False):
@@ -258,7 +262,7 @@ class FourierFilteringModule(nn.Module):
 
         self.dimension=dimension
         self.n_measurements = n_measurements
-        self.detector_size  = detector_size
+        self.detector_size = detector_size
 
         self.filter = FilterModule(dimension, self.detector_size, filter_name, 0.1, device, training_mode)
 
@@ -268,13 +272,12 @@ class FourierFilteringModule(nn.Module):
         centered_fourier_transform = torch.fft.fftshift(fourier_transform)
         # fourier_transform size : [B_s, n_measurements, Det_size]
         filtered = self.filter(centered_fourier_transform)
-        fbp = torch.fft.ifft(torch.fft.ifftshift(filtered))
-        return torch.real(fbp)
+        return torch.real(torch.fft.ifft(torch.fft.ifftshift(filtered)))
 
 class Iteration(nn.Module):
     def __init__(self,
                  dimension:int,
-                 pytorch_operator, pytorch_operator_adj, operator_norm,
+                 odl_backend:ODLBackend,
                  n_measurements:int, detector_size:int,
                  n_primal:int, n_dual:int, n_filters_primal :int, n_filters_dual:int,
                  fourier_filtering:bool,
@@ -282,6 +285,7 @@ class Iteration(nn.Module):
                  filter_name='', training_mode=False):
         super(Iteration, self).__init__()
         self.dimension = dimension
+        pytorch_operator, pytorch_operator_adj, operator_norm = odl_backend.get_pytorch_operators(device)
         self.op = pytorch_operator
         self.op_adj = pytorch_operator_adj
         self.operator_norm = operator_norm
@@ -348,16 +352,15 @@ class LearnedPrimalDual(nn.Module):
                 fourier_filter_name='', training_mode=False):
         super(LearnedPrimalDual, self).__init__()
         self.dimension = dimension
-        self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm = odl_backend.get_pytorch_operators(device)
-        self.operator_domain_shape = self.pytorch_operator.operator.domain.shape # type:ignore
-        self.adjoint_domain_shape  = self.pytorch_operator_adj.operator.domain.shape # type:ignore
+        self.odl_backend=odl_backend
+        self.operator_domain_shape = self.odl_backend.space_dict['shape'] # type:ignore
         if dimension ==1:
-            self.n_measurements = self.adjoint_domain_shape[0]
+            self.n_measurements = self.odl_backend.angle_partition_dict['shape']
         elif dimension == 2:
             self.n_measurements = 1
         else:
             raise ValueError
-        self.detector_size = self.adjoint_domain_shape[1]
+        self.detector_size = self.odl_backend.detector_partition_dict['shape']
         self.device = device
         self.n_primal = n_primal
         self.n_dual = n_dual
@@ -366,7 +369,7 @@ class LearnedPrimalDual(nn.Module):
                 {
                     f'iteration_{i}':Iteration(
                         dimension,
-                        self.pytorch_operator, self.pytorch_operator_adj, self.operator_norm,
+                        odl_backend,
                         self.n_measurements, self.detector_size,
                         n_primal, n_dual, n_filters_primal, n_filters_dual,
                         fourier_filtering,

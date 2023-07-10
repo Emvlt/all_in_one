@@ -8,7 +8,7 @@
 
 #! sbatch directives begin here ###############################
 #! Name of the job:
-#SBATCH -J vanilla_unet
+#SBATCH -J 100_percent_lpd_vanilla_unet
 #! Which project should be charged (NB Wilkes2 projects end in '-GPU'):
 #SBATCH -A SCHONLIEB-SL3-GPU
 #! How many whole nodes should be allocated?
@@ -59,7 +59,7 @@ conda activate all_in_one
 application="/home/ev373/.conda/envs/all_in_one/bin/python"
 
 #! Run options for the application:
-options="experiences.py --platform hpc --metadata_path metadata_folder/segmentation/6_percent_measurements/vanilla_unet.json"
+options="experiences.py --platform hpc --metadata_path metadata_folder/segmentation/100_percent_measurements/lpd_vanilla_unet.json"
 
 #! Work directory (i.e. where the job will run):
 workdir="/home/ev373/work/all_in_one"  # The value of SLURM_SUBMIT_DIR sets workdir to the directory

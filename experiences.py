@@ -33,8 +33,8 @@ if __name__ == '__main__':
     print(f'Running {pipeline} pipeline for {experiment_folder_name} experiment folder: experience {run_name} running on {args.platform}')
 
     metadata_dict = dict(json.load(open(metadata_path)))
+    data_feeding_dict = metadata_dict["data_feeding_dict"]
     training_dict = metadata_dict["training_dict"]
-    scan_parameter_dict = metadata_dict["scan_parameter_dict"]
     architecture_dict = metadata_dict['architecture_dict']
 
     ## Sanity checks
@@ -42,7 +42,11 @@ if __name__ == '__main__':
 
     ## Instanciate backend
     odl_backend = ODLBackend()
-    odl_backend.initialise_odl_backend_from_metadata_dict(scan_parameter_dict)
+    try:
+        scan_parameter_dict = metadata_dict["scan_parameter_dict"]
+        odl_backend.initialise_odl_backend_from_metadata_dict(scan_parameter_dict)
+    except KeyError:
+        print('No scanning dict in metadata, passing...')
 
     ## Transforms
     transforms = {
@@ -55,9 +59,9 @@ if __name__ == '__main__':
         DATASET_PATH,
         str(pipeline),
         odl_backend,
-        training_dict['training_proportion'],
-        'training',
-        training_dict['is_subset'],
+        data_feeding_dict['training_proportion'],
+        data_feeding_dict['train'],
+        data_feeding_dict['is_subset'],
         transform = transforms,
         )
     training_dataloader = DataLoader(

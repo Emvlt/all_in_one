@@ -135,7 +135,8 @@ def train_segmentation_network(
             dimension=2,
             n_channels_input  = architecture_dict['segmentation']['Unet_input_channels'],
             n_channels_output = architecture_dict['segmentation']['Unet_output_channels'],
-            n_filters = architecture_dict['segmentation']['Unet_n_filters']
+            n_filters = architecture_dict['segmentation']['Unet_n_filters'],
+            regression=False
             ).to(segmentation_device)
     else:
         raise NotImplementedError(f"{architecture_dict['segmentation']['name']} not implemented")
@@ -170,10 +171,23 @@ def train_segmentation_network(
             fourier_filtering = reconstruction_dict['fourier_filtering'],
             device = reconstruction_device
         )
+
+        elif reconstruction_dict['name'] == 'fourier_filtering':
+            reconstruction_net = FourierFilteringModule(
+                dimension=dimension,
+                n_measurements=odl_backend.angle_partition_dict['shape'],
+                detector_size=odl_backend.detector_partition_dict['shape'],
+                device = segmentation_device,
+                filter_name=reconstruction_dict['filter_name'],
+                training_mode=reconstruction_dict['train']
+            )
         else:
             raise NotImplementedError(f"{reconstruction_dict['name']} not implemented")
 
-        reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict['load_path'])
+        try:
+            reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict['load_path'])
+        except KeyError:
+                print('No save_path found, loading default model')
 
         reconstruction_net.eval()
         ## Define sinogram transform
@@ -185,9 +199,9 @@ def train_segmentation_network(
 
     for epoch in range(training_dict['n_epochs']):
         print(f"Training epoch {epoch} / {training_dict['n_epochs']}...")
-        for index, (reconstruction, mask) in enumerate(tqdm(train_dataloader)):
-            reconstruction = reconstruction.to(segmentation_device)
-            mask = mask.to(segmentation_device)
+        for index, data in enumerate(tqdm(train_dataloader)):
+            reconstruction = data[0].to(segmentation_device)
+            mask = data[-1].to(segmentation_device)
             if training_dict['reconstructed']:
                 with torch.no_grad():
                     ## Re-sample
@@ -196,8 +210,13 @@ def train_segmentation_network(
                         sinogram = torch.squeeze(sinogram, dim=1)
                     sinogram = sinogram_transforms(sinogram) #type:ignore
                     ## Reconstruct
-                    reconstruction = reconstruction_net(sinogram, just_infer=True) #type:ignore
-
+                    if reconstruction_dict['name'] == 'lpd': #type:ignore
+                        reconstruction = reconstruction_net(sinogram, just_infer=True) #type:ignore
+                    elif reconstruction_dict['name'] == 'fourier_filtering': #type:ignore
+                        filtered_sinogram:torch.Tensor = reconstruction_net(sinogram) #type:ignore
+                        reconstruction = odl_backend.get_reconstruction(filtered_sinogram.unsqueeze(1))
+                    else:
+                        raise NotImplementedError
             optimiser.zero_grad()
             approximated_segmentation = segmentation_net(reconstruction)
             loss_segmentation  = segmentation_loss(approximated_segmentation, mask)
