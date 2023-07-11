@@ -1,8 +1,20 @@
 from typing import Dict, List
 import pathlib
 
+import json
 import torch
 import matplotlib.pyplot as plt
+
+def load_json(file_path:pathlib.Path):
+    if not file_path.is_file():
+        raise FileNotFoundError (f'No file found at {file_path}')
+    with open(file_path, 'r') as file_read:
+        file = json.load(file_read)
+    return file
+
+def save_json(file_path:pathlib.Path | str, file:Dict):
+    with open(file_path, 'w') as file_write:
+        json.dump(file, file_write)
 
 class PyPlotImageWriter():
     def __init__(self, path_to_images_folder: pathlib.Path) -> None:
