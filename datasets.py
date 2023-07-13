@@ -7,6 +7,8 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 
+import matplotlib.pyplot as plt
+
 from utils import load_json, save_json
 from backends.odl import ODLBackend
 
@@ -49,6 +51,10 @@ class LIDC_IDRI(Dataset):
         if not patient_index_to_n_segmented_slices_file_path.is_file():
             self.compute_patient_index_to_segmented_slices(patient_index_to_n_segmented_slices_file_path)
         self.patient_index_to_segmented_slices:Dict = load_json(patient_index_to_n_segmented_slices_file_path)
+
+        # Patient Indices with 4 < diagnosis subtelty
+        self.patients_with_obvious_nodules = load_json(self.path_to_processed_dataset.joinpath('patients_with_obvious_nodules.json'))
+        self.patient_index_to_segmented_slices = dict((k,self.patient_index_to_segmented_slices[k]) for k in self.patients_with_obvious_nodules)
 
         ## Instanciating the class attributes from constructor argument
         self.pipeline = pipeline
@@ -171,8 +177,12 @@ class LIDC_IDRI(Dataset):
         slice_index_to_patient_index_list = []
         for patient_index in patient_list:
             slice_list = patient_index_to_n_slices[patient_index]
-            for _ in slice_list:
-                slice_index_to_patient_index_list.append(patient_index)
+            if self.pipeline =='reconstruction':
+                for _ in range(slice_list):
+                    slice_index_to_patient_index_list.append(patient_index)
+            else:
+                for _ in slice_list:
+                    slice_index_to_patient_index_list.append(patient_index)
         return slice_index_to_patient_index_list
 
     def get_reconstruction_tensor(self, file_path:pathlib.Path) -> torch.Tensor:
@@ -189,27 +199,30 @@ class LIDC_IDRI(Dataset):
     def get_mask_tensor(self, patient_index:str, slice_index:int) -> torch.Tensor:
         mask = torch.zeros((512,512), dtype=torch.bool)
         ## First, assess if the slice has a nodule
-        try:
-            all_nodules_dict:Dict = self.patients_masks_dictionary[patient_index][f'{slice_index}']
-            for nodule_index, nodule_annotations_list in all_nodules_dict.items():
-                ## If a nodule was not segmented by all the clinicians, the other annotations should not always be seen
-                while len(nodule_annotations_list) < 4:
-                    nodule_annotations_list.append('')
+        all_nodules_dict:Dict = self.patients_masks_dictionary[patient_index][f'{slice_index}']
 
-                annotation = random.choice(nodule_annotations_list)
-                if annotation == '':
-                    nodule_mask = torch.zeros((512,512), dtype=torch.bool)
-                else:
-                    path_to_mask = self.path_to_processed_dataset.joinpath(f'{patient_index}/mask_{slice_index}_nodule_{nodule_index}_annotation_{annotation}.npy')
-                    nodule_mask = torch.from_numpy(np.load(path_to_mask))
+        for nodule_index, nodule_annotations_list in all_nodules_dict.items():
+            ## If a nodule was not segmented by all the clinicians, the other annotations should not always be seen
+            '''while len(nodule_annotations_list) < 4:
+                nodule_annotations_list.append('')
 
-                mask = mask.bitwise_or(nodule_mask)
+            annotation = random.choice(nodule_annotations_list)
+            if annotation == '':
+                nodule_mask = torch.zeros((512,512), dtype=torch.bool)
+            else:
+                path_to_mask = self.path_to_processed_dataset.joinpath(f'{patient_index}/mask_{slice_index}_nodule_{nodule_index}_annotation_{annotation}.npy')
+                nodule_mask = torch.from_numpy(np.load(path_to_mask))
+            '''
 
-        except KeyError:
-            pass
+            annotation = random.choice(nodule_annotations_list)
+            path_to_mask = self.path_to_processed_dataset.joinpath(f'{patient_index}/mask_{slice_index}_nodule_{nodule_index}_annotation_{annotation}.npy')
+            nodule_mask = torch.from_numpy(np.load(path_to_mask))
+
+            mask = mask.bitwise_or(nodule_mask)
+
         # byte inversion
         mask = mask.int()
-        background = 1- mask
+        background = 1 - mask
         return torch.stack((background, mask))
 
     def __len__(self):
@@ -228,13 +241,17 @@ class LIDC_IDRI(Dataset):
         first_slice_index = self.patient_index_to_first_index_dict[patient_index]
         slice_index = index - first_slice_index
         #print(f'Index, {index}, Patient Id : {patient_index}, first_slice_index : {first_slice_index}, slice_index : {slice_index} ')
-        file_path = self.path_to_processed_dataset.joinpath(f'{patient_index}/slice_{slice_index}.npy')
+        if self.pipeline == 'reconstruction':
+            file_path = self.path_to_processed_dataset.joinpath(f'{patient_index}/slice_{slice_index}.npy')
+        else:
+            slice_name = list(self.patients_masks_dictionary[patient_index].keys())[slice_index]
 
+            file_path = self.path_to_processed_dataset.joinpath(f'{patient_index}/slice_{slice_name}.npy')
         ### WE NEVER RETURN THE SINOGRAM TO AVOID COMPUTING IT PER SAMPLE ###
         ### (except when we want the filtered backprojection...) ###
         if self.pipeline == "joint" or self.pipeline == "end_to_end" or self.pipeline == "segmentation":
             reconstruction_tensor = self.get_reconstruction_tensor(file_path)
-            mask_tensor = self.get_mask_tensor(patient_index, slice_index)
+            mask_tensor = self.get_mask_tensor(patient_index, slice_name) #type:ignore
             if self.transform is not None:
                 reconstruction_tensor = self.transform['reconstruction_transforms'](reconstruction_tensor)
                 mask_tensor = self.transform['mask_transforms'](mask_tensor)

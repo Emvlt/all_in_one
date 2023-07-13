@@ -88,18 +88,16 @@ class InceptionLayer(nn.Module):
     def __init__(self, dimension:int, n_channels_input:int, n_channels_output:int, n_filters:int, dtype=torch.float) -> None:
         super(InceptionLayer, self).__init__()
         if dimension == 1:
-            self.conv1 = nn.Conv1d(n_channels_input, n_filters, 1, padding = 0, dtype=dtype)
             self.conv3 = nn.Conv1d(n_channels_input, n_filters, 3, padding = 1, dtype=dtype)
             self.conv5 = nn.Conv1d(n_channels_input, n_filters, 5, padding = 2, dtype=dtype)
             self.conv7 = nn.Conv1d(n_channels_input, n_filters, 7, padding = 3, dtype=dtype)
-            self.collection_filter = nn.Conv1d(4*n_filters, n_channels_output, 7, padding = 3, dtype=dtype)
+            self.collection_filter = nn.Conv1d(3*n_filters, n_channels_output, 7, padding = 3, dtype=dtype)
 
         elif dimension == 2:
-            self.conv1 = nn.Conv2d(n_channels_input, n_filters, 1, padding = 0, dtype=dtype)
             self.conv3 = nn.Conv2d(n_channels_input, n_filters, 3, padding = 1, dtype=dtype)
             self.conv5 = nn.Conv2d(n_channels_input, n_filters, 5, padding = 2, dtype=dtype)
             self.conv7 = nn.Conv2d(n_channels_input, n_filters, 7, padding = 3, dtype=dtype)
-            self.collection_filter = nn.Conv2d(4*n_filters, n_channels_output, 7, padding = 3, dtype=dtype)
+            self.collection_filter = nn.Conv2d(3*n_filters, n_channels_output, 7, padding = 3, dtype=dtype)
 
         self.leaky_relu = nn.LeakyReLU(negative_slope = 0.1)
         self.filtering = nn.Sequential(
@@ -108,16 +106,10 @@ class InceptionLayer(nn.Module):
             nn.LeakyReLU(negative_slope = 0.1)
         )
 
-        weights_init(self.conv1)
-        weights_init(self.conv3)
-        weights_init(self.conv5)
-        weights_init(self.conv7)
-
     def forward(self, input_tensor:torch.Tensor) -> torch.Tensor:
         return self.filtering(
             torch.cat(
                 [
-                    self.conv1(input_tensor),
                     self.conv3(input_tensor),
                     self.conv5(input_tensor),
                     self.conv7(input_tensor)

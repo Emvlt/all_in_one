@@ -3,7 +3,7 @@ import pathlib
 
 from torch.utils.data import DataLoader
 import torch
-from tqdm import tqdm
+from kymatio.torch import Scattering2D
 from torch.utils.tensorboard import SummaryWriter #type:ignore
 from torchvision.transforms import Compose
 import matplotlib.pyplot as plt
@@ -58,6 +58,15 @@ def train_reconstruction_network(
 
     reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict['load_path'])
 
+    if training_dict['scattering']:
+        scattered_loss = loss_name_to_loss_function(training_dict['scattering_dict']['scattered_loss'])
+        print('Initialising Scattering Operator...')
+        scattering_operator = Scattering2D(
+            J = training_dict['scattering_dict']['J'],
+            shape = odl_backend.space_dict['shape'],
+            L = training_dict['scattering_dict']['L'],
+            max_order = training_dict['scattering_dict']['max_order']
+        ).to(reconstruction_device)
 
     reconstruction_loss = loss_name_to_loss_function(training_dict['reconstruction_loss'])
     sinogram_loss = loss_name_to_loss_function(training_dict['sinogram_loss'])
@@ -71,6 +80,7 @@ def train_reconstruction_network(
     )
 
     sinogram_transforms = Normalise()
+    display_transforms  = Normalise()
 
     reconstruction_model_save_path = pathlib.Path(save_folder_path)
     reconstruction_model_save_path.mkdir(exist_ok=True, parents=True)
@@ -95,6 +105,11 @@ def train_reconstruction_network(
             loss_sinogram = sinogram_loss(approximated_sinogram, sinogram)
 
             total_loss = (1-training_dict['dual_loss_weighting'])*loss_recontruction + training_dict['dual_loss_weighting']*loss_sinogram
+
+            if training_dict['scattering']:
+                loss_scattered = scattered_loss(scattering_operator(approximated_reconstruction),scattering_operator(reconstruction)) #type:ignore
+                total_loss += training_dict['scattering_dict']['scattered_loss_weighting']*loss_scattered
+
             total_loss.backward()
 
             optimiser.step()
@@ -106,14 +121,21 @@ def train_reconstruction_network(
                     print(f'Image PSNR : {psnr_loss(approximated_reconstruction, reconstruction).item()}')
                     print(f'Sinogram {training_dict["sinogram_loss"]} : {loss_sinogram.item()}')
                     print(f'Sinogram PSNR : {psnr_loss(approximated_sinogram, sinogram).item()}')
+                    if training_dict['scattering']:
+                        print(f'Scattered {training_dict["scattering_dict"]["scattered_loss"]} : {loss_scattered.item()}') #type:ignore
+
                 run_writer.add_scalar(f'Image {training_dict["reconstruction_loss"]} Loss', loss_recontruction.item(), global_step=index+epoch*train_dataloader.__len__())
                 run_writer.add_scalar('Image PSNR Loss', psnr_loss(approximated_reconstruction, reconstruction).item(), global_step=index+epoch*train_dataloader.__len__())
                 run_writer.add_scalar(f'Sinogram {training_dict["sinogram_loss"]} Loss', loss_sinogram.item(), global_step=index+epoch*train_dataloader.__len__())
                 run_writer.add_scalar('Sinogram PSNR Loss', psnr_loss(approximated_sinogram, sinogram).item(), global_step=index+epoch*train_dataloader.__len__())
-                image_writer.write_image_tensor(approximated_reconstruction, 'current_reconstruction.jpg')
-                image_writer.write_image_tensor(reconstruction, 'reconstruction_target.jpg')
                 image_writer.write_image_tensor(approximated_sinogram.unsqueeze(1), 'current_sinogram.jpg')
                 image_writer.write_image_tensor(sinogram.unsqueeze(1), 'sinogram_target.jpg')
+                image_writer.write_image_tensor(
+                    torch.cat((
+                        display_transforms(reconstruction[0,0]),
+                        display_transforms(approximated_reconstruction[0,0])
+                        ), dim = 1), 'current_approximation_target.jpg'
+                )
 
         torch.save(reconstruction_net.state_dict(), reconstruction_model_file_save_path)
 
@@ -194,8 +216,10 @@ def train_segmentation_network(
         sinogram_transforms = Normalise()
 
     segmentation_model_save_path = pathlib.Path(save_folder_path)
-    segmentation_model_save_path.mkdir(exist_ok=True, parents=True)
     segmentation_model_file_save_path = segmentation_model_save_path.joinpath(architecture_dict['segmentation']['save_path'])
+    segmentation_model_file_save_path.parent.mkdir(exist_ok=True, parents=True)
+
+    display_transform = Normalise()
 
     for epoch in range(training_dict['n_epochs']):
         print(f"Training epoch {epoch} / {training_dict['n_epochs']}...")
@@ -218,23 +242,25 @@ def train_segmentation_network(
                     else:
                         raise NotImplementedError
             optimiser.zero_grad()
-            approximated_segmentation = segmentation_net(reconstruction)
-            loss_segmentation  = segmentation_loss(approximated_segmentation, mask)
+            approximated_segmentation = segmentation_net(reconstruction*mask[:,1:,:,:])
+            loss_segmentation  = segmentation_loss(approximated_segmentation, mask[:,1:,:,:])
 
             loss_segmentation.backward()
 
             optimiser.step()
-
-            print(f'Segmentation Loss : {loss_segmentation.item():.5f}')
 
             if index %10 == 0:
                 if verbose:
                     print(f'\n Metrics at step {index} of epoch {epoch}')
                     print(f'Image BCE Loss : {loss_segmentation.item()}')
                 run_writer.add_scalar(f'Image BCE Loss', loss_segmentation.item(), global_step=index+epoch*train_dataloader.__len__())
-                image_writer.write_image_tensor(reconstruction, 'current_reconstruction.jpg')
-                image_writer.write_image_tensor(approximated_segmentation, 'current_segmentation.jpg')
-                image_writer.write_image_tensor(mask, 'target_segmentation.jpg')
+                #image_writer.write_image_tensor(reconstruction, 'current_reconstruction.jpg')
+                image_writer.write_image_tensor(
+                    torch.cat((
+                        display_transform(reconstruction[0,0]),
+                        display_transform(approximated_segmentation[0,0]),
+                        display_transform(mask[0,1]), ), dim = 1),
+                    'input_segmentation_tgt.jpg')
 
         torch.save(segmentation_net.state_dict(), segmentation_model_file_save_path)
 

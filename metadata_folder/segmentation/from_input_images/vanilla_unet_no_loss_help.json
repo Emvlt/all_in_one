@@ -8,7 +8,7 @@
 
     "training_dict":{
         "batch_size":16,
-        "learning_rate":1e-4,
+        "learning_rate":5e-6,
         "n_epochs":4,
         "num_workers":2,
         "segmentation_loss":"BCE",
@@ -20,11 +20,11 @@
             "name":"Unet",
             "train":true,
             "Unet_input_channels":1,
-            "Unet_output_channels":2,
-            "Unet_n_filters":16,
-            "load_path":"segmentation/from_input_images/vanilla_unet.pth",
-            "save_path":"segmentation/from_input_images/vanilla_unet_epochs_0_3.pth",
-            "device_name":"cuda:0"
+            "Unet_output_channels":1,
+            "Unet_n_filters":4,
+            "load_path":"segmentation/from_input_images/vanilla_unet_no_bkg.pth",
+            "save_path":"segmentation/from_input_images/vanilla_unet_no_loss_help.pth",
+            "device_name":"cuda:3"
         }
     }
 }
