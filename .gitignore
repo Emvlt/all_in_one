@@ -1,0 +1,12 @@
+__pycache__/
+backup/
+debug/
+experience_plan.md
+filter_LIDC_IDRI.py
+images/
+monai_bundle/
+odl/
+patient_index_to_segmented_slices.json
+plots/
+results/
+siemens_reconstruction/
