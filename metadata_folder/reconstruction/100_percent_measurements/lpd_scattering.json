@@ -36,8 +36,8 @@
             "lpd_n_filters_primal":16,
             "lpd_n_filters_dual":16,
             "fourier_filtering":false,
-            "load_path":"reconstruction/6_percent_measurements/lpd_with_scattering_epochs_0_3.pth",
-            "save_path":"reconstruction/6_percent_measurements/lpd_with_scattering_epochs_0_3.pth",
+            "load_path":"reconstruction/100_percent_measurements/lpd_with_scattering_epochs_0_3.pth",
+            "save_path":"reconstruction/100_percent_measurements/lpd_with_scattering_epochs_0_3.pth",
             "device_name":"cuda:0"
         }
     },
