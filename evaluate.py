@@ -250,7 +250,7 @@ def quantitative_evaluation(
                 reconstruction_device = metadata_dict["architecture_dict"][
                     "reconstruction"
                 ]["device_name"]
-                patient_indices_list = dataset.get_patient_slices_list(patient_id)
+                patient_indices_list = dataset.patient_id_to_slices_of_interest[patient_id]
                 for patient_slice_path in patient_indices_list:
                     approximated_reconstruction, reconstruction = infer_slice(
                         odl_backend,

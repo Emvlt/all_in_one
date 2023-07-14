@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Dict
 import pathlib
 import random
 import math
@@ -7,11 +7,8 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset
 
-import matplotlib.pyplot as plt
-
 from utils import load_json, save_json
 from backends.odl import ODLBackend
-
 
 def format_index(index: int) -> str:
     str_index = str(index)
@@ -34,53 +31,9 @@ class LIDC_IDRI(Dataset):
         subset=[],
         verbose=False,
         patient_list=[],
-    ):
-
-        ## Defining the path to data
-        self.path_to_processed_dataset = path_to_dataset
-        self.patients_masks_dictionary = load_json(
-            self.path_to_processed_dataset.joinpath("patients_masks.json")
-        )
-        self.patients_diagnosis_dictionary = load_json(
-            self.path_to_processed_dataset.joinpath("patient_id_to_diagnosis.json")
-        )
-
-        ## Preprocess the dataset if the file doesn't exists:
-        # Patient index to n_slices
-        patient_index_to_n_slices_file_path = self.path_to_processed_dataset.joinpath(
-            "patient_index_to_n_slices.json"
-        )
-        if not patient_index_to_n_slices_file_path.is_file():
-            self.compute_patient_index_to_n_slices(patient_index_to_n_slices_file_path)
-        self.patient_index_to_n_slices: Dict = load_json(
-            patient_index_to_n_slices_file_path
-        )
-
-        # Patient index to segmented slices indexes
-        patient_index_to_n_segmented_slices_file_path = (
-            self.path_to_processed_dataset.joinpath(
-                "patient_index_to_segmented_slices.json"
-            )
-        )
-        if not patient_index_to_n_segmented_slices_file_path.is_file():
-            self.compute_patient_index_to_segmented_slices(
-                patient_index_to_n_segmented_slices_file_path
-            )
-        self.patient_index_to_segmented_slices: Dict = load_json(
-            patient_index_to_n_segmented_slices_file_path
-        )
-
-        # Patient Indices with 4 < diagnosis subtelty
-        self.patients_with_obvious_nodules = load_json(
-            self.path_to_processed_dataset.joinpath(
-                "patients_with_obvious_nodules.json"
-            )
-        )
-        self.patient_index_to_segmented_slices = dict(
-            (k, self.patient_index_to_segmented_slices[k])
-            for k in self.patients_with_obvious_nodules
-        )
-
+        rule='superior',
+        subtelty_value=4
+        ):
         ## Instanciating the class attributes from constructor argument
         self.pipeline = pipeline
         self.backend = backend
@@ -89,13 +42,61 @@ class LIDC_IDRI(Dataset):
         ## Subset is either a boolean with False value OR a List of patient Ids
         self.is_subset = is_subset
         self.transform = transform
+        ## Defining the path to data
+        self.path_to_processed_dataset = path_to_dataset
+
+        ## Define path to patient_id_to_diagnosis
+        """
+        "LIDC-IDRI-xxxx": diagnostic_key (cf tcia-diagnosis-data-2012-04-20.xls)
+        """
+        self.patient_id_to_diagnosis = load_json(self.path_to_processed_dataset.joinpath("patient_id_to_diagnosis.json"))
+
+        ## Preprocess the dataset if the file doesn't exists:
+        # Patient index to n_slices
+        """
+        "LIDC-IDRI-xxxx": List of slices : List
+        """
+        patient_index_to_n_slices_file_path = self.path_to_processed_dataset.joinpath("patient_index_to_slices.json")
+        if not patient_index_to_n_slices_file_path.is_file():
+            self.compute_patient_index_to_slices(patient_index_to_n_slices_file_path)
+        self.patient_id_to_slices_of_interest: Dict = load_json(patient_index_to_n_slices_file_path)
+
+        if pipeline == 'segmentation':
+            ## Define path to patients_masks
+            """
+            "LIDC-IDRI-xxxx": {
+                "segmented_slice_index": {
+                    "nodule_index": [
+                        annotation_i,
+                        annotation_j,
+                        annotation_k
+                    ]
+                },
+            """
+            self.patients_masks = load_json(self.path_to_processed_dataset.joinpath("patients_masks.json"))
+            # Patient index to segmented slices indexes
+            """
+            "LIDC-IDRI-xxxx": segmented slices : List
+            """
+            patient_index_to_segmented_slices_file_path = (self.path_to_processed_dataset.joinpath("patient_index_to_segmented_slices.json"))
+            if not patient_index_to_segmented_slices_file_path.is_file():
+                self.compute_patient_index_to_segmented_slices(patient_index_to_segmented_slices_file_path)
+            self.patient_index_to_segmented_slices: Dict = load_json(patient_index_to_segmented_slices_file_path)
+
+            ## Patient Indices that have relevant nodules
+            """
+            ["LIDC-IDRI-xxxx", "LIDC-IDRI-yyyy", "LIDC-IDRI-zzzz"]
+            """
+            self.patients_with_nodules_of_interest = load_json(self.path_to_processed_dataset.joinpath(f"patients_with_nodule_subtlety_{rule}_to_{subtelty_value}.json"))
+            ## Define patient index to segmented slices index
+            # We overwite the self.patient_id_to_slices_of_interest attribute with the dict mapping patient name
+            self.patient_id_to_slices_of_interest = dict(
+                (k, self.patient_index_to_segmented_slices[k]) for k in self.patients_with_nodules_of_interest
+            )
 
         ## Partitioning the dataset
         if is_subset == False:
-            if self.pipeline == "reconstruction":
-                self.subset = [index for index in range(1, 1012)]
-            else:
-                self.subset = list(self.patient_index_to_segmented_slices.keys())
+            self.subset = list(self.patient_id_to_slices_of_interest.keys())
         else:
             self.subset = subset
 
@@ -103,34 +104,23 @@ class LIDC_IDRI(Dataset):
 
         ### Calculating the number of patients
         ### Note: we do sanity checks here with testing and training regardless of the self.mode argument
-        self.n_patients_training = math.floor(
-            self.training_proportion * self.total_patients
-        )
-        self.n_patients_testing = math.ceil(
-            (1 - self.training_proportion) * self.total_patients
-        )
-        assert self.total_patients == (
-            self.n_patients_training + self.n_patients_testing
-        ), print(
-            f"Total patients: {self.total_patients}, \n training patients {self.n_patients_training}, \n testing patients {self.n_patients_testing}"
-        )
+        self.n_patients_training = math.floor(self.training_proportion * self.total_patients)
+        self.n_patients_testing = math.ceil((1 - self.training_proportion) * self.total_patients)
+        assert self.total_patients == (self.n_patients_training + self.n_patients_testing), \
+            print(f"Total patients: {self.total_patients}, \
+                \n training patients {self.n_patients_training}, \
+                \n testing patients {self.n_patients_testing}")
 
-        if self.pipeline == "reconstruction":
-            self.patient_indexs = list(self.patient_index_to_n_slices.keys())
-        else:
-            self.patient_indexs = list(self.patient_index_to_segmented_slices.keys())
+        self.patient_indices = list(self.patient_id_to_slices_of_interest.keys())
 
-        ### If the patient list is not specified, it means that we are not testing, but training
+        ### If the patient list is not specified, it means that we are training, not testing
         if len(patient_list) == 0:
-            self.training_patients_list = self.patient_indexs[
-                : self.n_patients_training
-            ]
-            self.testing_patients_list = self.patient_indexs[self.n_patients_training :]
-            assert len(self.patient_indexs) == len(self.training_patients_list) + len(
-                self.testing_patients_list
-            ), print(
-                f"Len patients ids: {len(self.patient_indexs)}, \n len training patients {len(self.training_patients_list)}, \n len testing patients {len(self.testing_patients_list)}"
-            )
+            self.training_patients_list = self.patient_indices[:self.n_patients_training]
+            self.testing_patients_list = self.patient_indices[self.n_patients_training :]
+            assert len(self.patient_indices) == len(self.training_patients_list) + len(self.testing_patients_list), \
+                print(f"Len patients ids: {len(self.patient_indices)}, \
+                    \n len training patients {len(self.training_patients_list)}, \
+                    \n len testing patients {len(self.testing_patients_list)}")
 
         else:
             self.testing_patients_list: List[str] = patient_list  # type:ignore
@@ -139,59 +129,16 @@ class LIDC_IDRI(Dataset):
             print("Preparing patient list, this may take time....")
 
         ### REFACTOR (yikes)
-        if self.pipeline == "reconstruction":
-            if self.training:
-                self.slice_index_to_patient_index_list = (
-                    self.get_slice_index_to_patient_index_list(
-                        self.training_patients_list, self.patient_index_to_n_slices
-                    )
-                )
-                self.patient_index_to_first_index_dict = (
-                    self.get_patient_index_to_first_index_dict(
-                        self.training_patients_list, self.patient_index_to_n_slices
-                    )
-                )
-
-            else:
-                self.slice_index_to_patient_index_list = (
-                    self.get_slice_index_to_patient_index_list(
-                        self.testing_patients_list, self.patient_index_to_n_slices
-                    )
-                )
-                self.patient_index_to_first_index_dict = (
-                    self.get_patient_index_to_first_index_dict(
-                        self.testing_patients_list, self.patient_index_to_n_slices
-                    )
+        if self.training:
+            self.slice_index_to_patient_index_list, self.patient_index_to_first_index_dict = self.get_dataset_indices(
+                self.training_patients_list, self.patient_id_to_slices_of_interest
                 )
 
         else:
-            if self.training:
-                self.slice_index_to_patient_index_list = (
-                    self.get_slice_index_to_patient_index_list(
-                        self.training_patients_list,
-                        self.patient_index_to_segmented_slices,
-                    )
-                )
-                self.patient_index_to_first_index_dict = (
-                    self.get_patient_index_to_first_index_dict(
-                        self.training_patients_list,
-                        self.patient_index_to_segmented_slices,
-                    )
+            self.slice_index_to_patient_index_list, self.patient_index_to_first_index_dict = self.get_dataset_indices(
+                self.testing_patients_list, self.patient_id_to_slices_of_interest
                 )
 
-            else:
-                self.slice_index_to_patient_index_list = (
-                    self.get_slice_index_to_patient_index_list(
-                        self.testing_patients_list,
-                        self.patient_index_to_segmented_slices,
-                    )
-                )
-                self.patient_index_to_first_index_dict = (
-                    self.get_patient_index_to_first_index_dict(
-                        self.testing_patients_list,
-                        self.patient_index_to_segmented_slices,
-                    )
-                )
 
         if verbose:
             print(f"Patient lists ready")
@@ -203,7 +150,7 @@ class LIDC_IDRI(Dataset):
 
             try:
                 slices_with_segmentation = list(
-                    self.patients_masks_dictionary[patient_name].keys()
+                    self.patients_masks[patient_name].keys()
                 )
                 patient_index_to_segmented_slices[
                     patient_name
@@ -214,61 +161,29 @@ class LIDC_IDRI(Dataset):
 
         save_json(save_file_path, patient_index_to_segmented_slices)
 
-    def compute_patient_index_to_n_slices(self, save_file_path: pathlib.Path):
+    def compute_patient_index_to_slices(self, save_file_path: pathlib.Path):
         patient_index_to_segmented_slices = {}
         for index in range(1, 1012):
             patient_name = f"LIDC-IDRI-{format_index(index)}"
             path_to_folder = self.path_to_processed_dataset.joinpath(patient_name)
             n_slices = len(list(path_to_folder.glob("slice_*.npy")))
-            patient_index_to_segmented_slices[patient_name] = n_slices
+            patient_index_to_segmented_slices[patient_name] = [i for i in range(n_slices)]
 
         save_json(save_file_path, patient_index_to_segmented_slices)
 
-    def get_patient_slices_list(self, patient_index: str) -> List:
-        assert (
-            patient_index in self.patient_index_to_n_slices
-        ), f"Patient Id {patient_index} not in {self.patient_index_to_n_slices}"
-        n_slices = self.patient_index_to_n_slices[patient_index]
-        if self.pipeline == "reconstruction":
-            patient_slices_list = []
-            for slice_index in range(n_slices):
-                patient_slices_list.append(
-                    self.path_to_processed_dataset.joinpath(
-                        f"{patient_index}/slice_{slice_index}.npy"
-                    )
-                )
-
-            return patient_slices_list
-
-        else:
-            raise NotImplementedError
-
-    def get_patient_index_to_first_index_dict(
-        self, patient_list: List, patient_index_to_n_slices: Dict
-    ):
+    def get_dataset_indices(self, patient_list:List, patient_index_to_slices:Dict):
         patient_index_to_first_index_dict = {}
+        slice_index_to_patient_index_list = []
         global_index = 0
         for patient_index in patient_list:
             patient_index_to_first_index_dict[patient_index] = global_index
-            if self.pipeline == "reconstruction":
-                global_index += patient_index_to_n_slices[patient_index]
-            else:
-                global_index += len(patient_index_to_n_slices[patient_index])
-        return patient_index_to_first_index_dict
+            slice_list = patient_index_to_slices[patient_index]
+            global_index += len(patient_index_to_slices[patient_index])
+            for _ in slice_list:
+                    slice_index_to_patient_index_list.append(patient_index)
 
-    def get_slice_index_to_patient_index_list(
-        self, patient_list: List, patient_index_to_n_slices: Dict
-    ):
-        slice_index_to_patient_index_list = []
-        for patient_index in patient_list:
-            slice_list = patient_index_to_n_slices[patient_index]
-            if self.pipeline == "reconstruction":
-                for _ in range(slice_list):
-                    slice_index_to_patient_index_list.append(patient_index)
-            else:
-                for _ in slice_list:
-                    slice_index_to_patient_index_list.append(patient_index)
-        return slice_index_to_patient_index_list
+        return slice_index_to_patient_index_list, patient_index_to_first_index_dict
+
 
     def get_reconstruction_tensor(self, file_path: pathlib.Path) -> torch.Tensor:
         tensor = torch.from_numpy(np.load(file_path)).unsqueeze(0)
@@ -281,16 +196,14 @@ class LIDC_IDRI(Dataset):
     def get_filtered_backprojection(self, file_path: pathlib.Path) -> torch.Tensor:
         return torch.from_numpy(
             self.backend.get_filtered_backprojection(
-                backend.operator(np.load(file_path)), "Hann"
+                self.backend.operator(np.load(file_path)), "Hann" #type:ignore
             )
-        ).unsqueeze(
-            0
-        )  # type:ignore
+        ).unsqueeze(0)  # type:ignore
 
     def get_mask_tensor(self, patient_index: str, slice_index: int) -> torch.Tensor:
         mask = torch.zeros((512, 512), dtype=torch.bool)
         ## First, assess if the slice has a nodule
-        all_nodules_dict: Dict = self.patients_masks_dictionary[patient_index][
+        all_nodules_dict: Dict = self.patients_masks[patient_index][
             f"{slice_index}"
         ]
 
@@ -345,7 +258,7 @@ class LIDC_IDRI(Dataset):
                 f"{patient_index}/slice_{slice_index}.npy"
             )
         else:
-            slice_name = list(self.patients_masks_dictionary[patient_index].keys())[
+            slice_name = list(self.patients_masks[patient_index].keys())[
                 slice_index
             ]
 
@@ -378,7 +291,7 @@ class LIDC_IDRI(Dataset):
             return reconstruction_tensor
 
         elif self.pipeline == "diagnostic":
-            return self.patients_diagnosis_dictionary[patient_index]
+            return self.patient_id_to_diagnosis[patient_index]
 
         else:
             raise NotImplementedError

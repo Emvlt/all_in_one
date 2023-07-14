@@ -24,7 +24,7 @@
             "Unet_n_filters":4,
             "load_path":"segmentation/from_input_images/vanilla_unet_no_bkg.pth",
             "save_path":"segmentation/from_input_images/vanilla_unet_no_bkg.pth",
-            "device_name":"cuda:3"
+            "device_name":"cuda:1"
         }
     }
 }

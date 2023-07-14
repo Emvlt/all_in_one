@@ -131,14 +131,8 @@ def train_reconstruction_network(
             ] * loss_sinogram
 
             if training_dict["scattering"]:
-                loss_scattered = scattered_loss(
-                    scattering_operator(approximated_reconstruction),
-                    scattering_operator(reconstruction),
-                )  # type:ignore
-                total_loss += (
-                    training_dict["scattering_dict"]["scattered_loss_weighting"]
-                    * loss_scattered
-                )
+                loss_scattered = scattered_loss(scattering_operator(approximated_reconstruction),scattering_operator(reconstruction))  # type:ignore
+                total_loss += training_dict["scattering_dict"]["scattered_loss_weighting"] * loss_scattered
 
             total_loss.backward()
 
@@ -147,22 +141,12 @@ def train_reconstruction_network(
             if index % 10 == 0:
                 if verbose:
                     print(f"\n Metrics at step {index} of epoch {epoch}")
-                    print(
-                        f'Image {training_dict["reconstruction_loss"]} : {loss_recontruction.item()}'
-                    )
-                    print(
-                        f"Image PSNR : {psnr_loss(approximated_reconstruction, reconstruction).item()}"
-                    )
-                    print(
-                        f'Sinogram {training_dict["sinogram_loss"]} : {loss_sinogram.item()}'
-                    )
-                    print(
-                        f"Sinogram PSNR : {psnr_loss(approximated_sinogram, sinogram).item()}"
-                    )
+                    print(f'Image {training_dict["reconstruction_loss"]} : {loss_recontruction.item()}')
+                    print(f"Image PSNR : {psnr_loss(approximated_reconstruction, reconstruction).item()}")
+                    print(f'Sinogram {training_dict["sinogram_loss"]} : {loss_sinogram.item()}')
+                    print(f"Sinogram PSNR : {psnr_loss(approximated_sinogram, sinogram).item()}")
                     if training_dict["scattering"]:
-                        print(
-                            f'Scattered {training_dict["scattering_dict"]["scattered_loss"]} : {loss_scattered.item()}'
-                        )  # type:ignore
+                        print(f'Scattered {training_dict["scattering_dict"]["scattered_loss"]} : {loss_scattered.item()}')  # type:ignore
 
                 run_writer.add_scalar(
                     f'Image {training_dict["reconstruction_loss"]} Loss',
@@ -184,12 +168,22 @@ def train_reconstruction_network(
                     psnr_loss(approximated_sinogram, sinogram).item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
+
+                if odl_backend.angle_partition_dict['shape'] < odl_backend.detector_partition_dict['shape']:
+                    display_dim = 0
+                else:
+                    display_dim = 1
                 image_writer.write_image_tensor(
-                    approximated_sinogram.unsqueeze(1), "current_sinogram.jpg"
+                    torch.cat(
+                        (
+                            display_transforms(sinogram),
+                            display_transforms(approximated_sinogram),
+                        ),
+                        dim=display_dim+dimension,
+                    ),
+                    "current_sinogram_approximation_target.jpg",
                 )
-                image_writer.write_image_tensor(
-                    sinogram.unsqueeze(1), "sinogram_target.jpg"
-                )
+
                 image_writer.write_image_tensor(
                     torch.cat(
                         (
@@ -198,7 +192,7 @@ def train_reconstruction_network(
                         ),
                         dim=1,
                     ),
-                    "current_approximation_target.jpg",
+                    "current_image_approximation_target.jpg",
                 )
 
         torch.save(reconstruction_net.state_dict(), reconstruction_model_file_save_path)
@@ -310,15 +304,9 @@ def train_segmentation_network(
                     sinogram = sinogram_transforms(sinogram)  # type:ignore
                     ## Reconstruct
                     if reconstruction_dict["name"] == "lpd":  # type:ignore
-                        reconstruction = reconstruction_net(
-                            sinogram, just_infer=True
-                        )  # type:ignore
-                    elif (
-                        reconstruction_dict["name"] == "fourier_filtering"
-                    ):  # type:ignore
-                        filtered_sinogram: torch.Tensor = reconstruction_net(
-                            sinogram
-                        )  # type:ignore
+                        reconstruction = reconstruction_net(sinogram, just_infer=True)  # type:ignore
+                    elif reconstruction_dict["name"] == "fourier_filtering":  # type:ignore
+                        filtered_sinogram: torch.Tensor = reconstruction_net(sinogram)  # type:ignore
                         reconstruction = odl_backend.get_reconstruction(
                             filtered_sinogram.unsqueeze(1)
                         )
