@@ -34,6 +34,8 @@ def unpack_hparams(metadata_dict:Dict) -> Dict:
         "reconstruction_loss":training_dict["reconstruction_loss"],
         "sinogram_loss":training_dict["sinogram_loss"],
     }
+    if training_dict["dual_loss_weighting"] !=0:
+        hparams["sinogram_loss"] = training_dict["sinogram_loss"]
     for architecture_name, network_dict in architecture_dict.items():
         hparams[f'{architecture_name}_network'] = network_dict["name"]
         if network_dict["name"] == 'lpd':
