@@ -62,6 +62,11 @@ def unpack_hparams(metadata_dict:Dict) -> Dict:
 
     return hparams
 
+VERBOSE_DICT ={
+    'holly-b':True,
+    'hpc':False
+}
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--metadata_path", required=True)
@@ -159,6 +164,7 @@ if __name__ == "__main__":
             image_writer=image_writer,
             run_writer=run_writer,
             save_folder_path=models_path,
+            verbose=VERBOSE_DICT[args.platform]
         )
     elif pipeline == "segmentation":
         train_segmentation_network(

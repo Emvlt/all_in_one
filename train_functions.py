@@ -77,10 +77,7 @@ def train_reconstruction_network(
     reconstruction_net = unpack_architecture_dicts(architecture_dict, odl_backend)['reconstruction']
     reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict["load_path"])
 
-    run_writer.add_hparams(
-        hparam_dict={"Number of model parameters": sum(p.numel() for p in reconstruction_net.parameters())},
-        metric_dict={}
-    )
+    print(f'Number of network parameters: { sum(p.numel() for p in reconstruction_net.parameters())}')
 
     reconstruction_loss = loss_name_to_loss_function(training_dict["reconstruction_loss"])
     sinogram_loss = loss_name_to_loss_function(training_dict["sinogram_loss"])
@@ -152,7 +149,7 @@ def train_reconstruction_network(
                 )
                 run_writer.add_scalar(
                     f'Primal {training_dict["reconstruction_loss"]} / Dual {training_dict["sinogram_loss"]}',
-                    loss_recontruction.item() / loss_sinogram.item(),
+                    (loss_recontruction/loss_sinogram).item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
 

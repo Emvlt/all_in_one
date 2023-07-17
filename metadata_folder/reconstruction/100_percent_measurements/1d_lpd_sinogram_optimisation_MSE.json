@@ -15,7 +15,7 @@
         "dose":1,
         "dual_loss_weighting":0.5,
         "reconstruction_loss":"MSE",
-        "sinogram_loss":"L1"
+        "sinogram_loss":"MSE"
     },
 
     "architecture_dict":{
