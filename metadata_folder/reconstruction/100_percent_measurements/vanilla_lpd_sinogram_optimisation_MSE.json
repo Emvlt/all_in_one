@@ -3,33 +3,43 @@
         "dataset_name":"LIDC-IDRI",
         "train":true,
         "training_proportion":0.8,
-        "is_subset":false
+        "is_subset":true,
+        "subset":[88,143,223,325,470,559,624,772,893,1002]
     },
 
     "training_dict":{
-        "batch_size":16,
-        "learning_rate":5e-5,
-        "n_epochs":4,
+        "batch_size":8,
+        "learning_rate":1e-4,
+        "n_epochs":20,
         "num_workers":2,
         "dose":1,
         "dual_loss_weighting":0.5,
         "reconstruction_loss":"MSE",
-        "sinogram_loss":"L1"
+        "sinogram_loss":"MSE"
     },
 
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
             "train":true,
-            "dimension":1,
-            "n_primal":1,
-            "n_dual":1,
-            "lpd_n_iterations":1,
-            "lpd_n_filters_primal":16,
-            "lpd_n_filters_dual":16,
-            "fourier_filtering":false,
-            "load_path":"reconstruction/6_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_3_5.pth",
-            "save_path":"reconstruction/6_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_6_9.pth",
+            "primal_dict":{
+                "dimension":2,
+                "name":"cnn_block",
+                "n_layers":1,
+                "n_filters":32
+            },
+            "dual_dict":{
+                "dimension":2,
+                "name":"cnn_block",
+                "n_layers":1,
+                "n_filters":32
+            },
+            "n_iterations":5,
+            "fourier_filtering_dict":{
+                "is_filter":false
+            },
+            "load_path":"reconstruction/100_percent_measurements/vanilla_lpd.pth",
+            "save_path":"reconstruction/100_percent_measurements/vanilla_lpd.pth",
             "device_name":"cuda:0"
         }
     },
@@ -44,7 +54,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":64
+            "shape":1024
         },
         "detector_partition_dict":{
             "min_pt":-473,

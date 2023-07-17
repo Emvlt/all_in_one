@@ -41,6 +41,8 @@ class LIDC_IDRI(Dataset):
         self.training = training
         ## Subset is either a boolean with False value OR a List of patient Ids
         self.is_subset = is_subset
+        if self.is_subset:
+            assert len(subset) != 0, f'No subset List argument provided, please provide the patient indices as int values. ex: [3,100,930,...]'
         self.transform = transform
         ## Defining the path to data
         self.path_to_processed_dataset = path_to_dataset

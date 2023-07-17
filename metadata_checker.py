@@ -65,7 +65,29 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
     check_boolean('train', reconstruction_dict['train'])
 
     if reconstruction_dict['name']  == 'lpd':
-        assert 'dimension' in reconstruction_dict.keys(), 'Specify dimension of LPD architecture'
+        assert 'primal_dict' in reconstruction_dict.keys(), 'Specify LPD architecture primal_dict'
+        check_dict('primal_dict', reconstruction_dict['primal_dict'])
+        primal_dict:Dict = reconstruction_dict['primal_dict']
+        assert 'dimension' in primal_dict.keys(), 'Specify LPD primal dimension'
+        check_integer('dimension', primal_dict['dimension'])
+        assert 'name' in primal_dict.keys(), 'Specify LPD primal name'
+        check_string('name', primal_dict['name'])
+        assert 'n_layers' in primal_dict.keys(), 'Specify LPD primal n_layers'
+        check_integer('n_layers', primal_dict['n_layers'])
+        assert 'n_filters' in primal_dict.keys(), 'Specify LPD primal n_filters'
+        check_integer('n_filters',primal_dict ['n_filters'])
+
+        assert 'dual_dict' in reconstruction_dict.keys(), 'Specify LPD architecture dual_dict'
+        check_dict('dual_dict', reconstruction_dict['dual_dict'])
+        dual_dict:Dict = reconstruction_dict['dual_dict']
+        assert 'dimension' in dual_dict.keys(), 'Specify LPD dual dimension'
+        check_integer('dimension', dual_dict['dimension'])
+        assert 'name' in dual_dict.keys(), 'Specify LPD dual name'
+        check_string('name', dual_dict['name'])
+        assert 'n_layers' in dual_dict.keys(), 'Specify LPD dual n_layers'
+        check_integer('n_layers', dual_dict['n_layers'])
+        assert 'n_filters' in dual_dict.keys(), 'Specify LPD dual n_filters'
+        check_integer('n_filters',dual_dict ['n_filters'])
 
         if reconstruction_dict['train']:
             assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
@@ -83,30 +105,16 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
         else:
             assert 'load_path' in reconstruction_dict.keys(), 'specify load path for reconstruction network'
 
-        assert 'n_primal' in reconstruction_dict.keys(), 'Specify number of lpd primal channels'
-        check_integer('n_primal', reconstruction_dict['n_primal'])
+        assert 'fourier_filtering_dict' in reconstruction_dict.keys()
+        fourier_filtering_dict = reconstruction_dict['fourier_filtering_dict']
+        check_dict('fourier_filtering_dict',fourier_filtering_dict)
 
-        assert 'n_dual' in reconstruction_dict.keys(), 'Specify number of lpd dual channels'
-        check_integer('n_dual', reconstruction_dict['n_dual'])
+        if fourier_filtering_dict['is_filter']:
+            assert 'name' in fourier_filtering_dict.keys(), 'Provide filter_name str argument'
+            check_string('name',fourier_filtering_dict['name'])
 
-        assert 'lpd_n_iterations' in reconstruction_dict.keys(), 'Specify number of lpd iterations'
-        check_integer('lpd_n_iterations', reconstruction_dict['lpd_n_iterations'])
-
-        assert 'lpd_n_filters_primal' in reconstruction_dict.keys(), 'Specify number of lpd filters primal'
-        check_integer('lpd_n_filters_primal', reconstruction_dict['lpd_n_filters_primal'])
-
-        assert 'lpd_n_filters_dual' in reconstruction_dict.keys(), 'Specify number of lpd filters dual'
-        check_integer('lpd_n_filters_dual', reconstruction_dict['lpd_n_filters_dual'])
-
-        assert 'fourier_filtering' in reconstruction_dict.keys()
-        check_boolean('fourier_filtering', reconstruction_dict['fourier_filtering'])
-
-        if reconstruction_dict['fourier_filtering']:
-            assert 'filter_name' in reconstruction_dict.keys(), 'Provide filter_name str argument'
-            check_string('filter_name', reconstruction_dict['filter_name'])
-
-            assert 'train_filter' in reconstruction_dict.keys(), 'Provide train_filter boolean argument'
-            check_boolean('train_filter', reconstruction_dict['train_filter'])
+            assert 'train' in fourier_filtering_dict.keys(), 'Provide train boolean argument'
+            check_boolean('train',fourier_filtering_dict['train'])
 
     elif reconstruction_dict['name'] =='filtered_backprojection':
         assert 'filter_name' in reconstruction_dict.keys(), 'Provide filter_name str argument'

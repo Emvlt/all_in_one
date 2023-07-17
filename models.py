@@ -1,4 +1,5 @@
 import pathlib
+from typing import Dict
 
 import torch.nn as nn
 import torch
@@ -246,12 +247,14 @@ class InceptionLayer(nn.Module):
 class CnnBlock(nn.Module):
     def __init__(
         self,
-        dimension: int,
-        n_filters: int,
-        n_channels_input: int,
-        n_channels_output: int,
+        network_dict:Dict,
     ) -> None:
         super(CnnBlock, self).__init__()
+        dimension = network_dict['dimension']
+        n_channels_input  = network_dict['n_channels_input']
+        n_channels_output = network_dict['n_channels_output']
+        n_filters = network_dict['n_filters']
+
         if dimension == 1:
             self.block = nn.Sequential(
                 nn.Conv1d(n_channels_input, n_filters, 3, padding=1),
@@ -344,13 +347,14 @@ class UpModule(nn.Module):
 class Unet(nn.Module):
     def __init__(
         self,
-        dimension: int,
-        n_channels_input: int,
-        n_channels_output: int,
-        n_filters: int,
-        regression=True,
+        network_dict:Dict
     ):
         super(Unet, self).__init__()
+        dimension = network_dict['dimension']
+        n_channels_input  = network_dict['n_channels_input']
+        n_channels_output = network_dict['n_channels_output']
+        n_filters = network_dict['n_filters']
+        regression=True,
         # Initialize neural network blocks.
         self.conv1 = InceptionLayer(dimension, n_channels_input, n_filters, n_filters)
         self.conv2 = InceptionLayer(dimension, n_filters, n_filters, n_filters)
@@ -435,26 +439,22 @@ class FilterModule(nn.Module):
 class FourierFilteringModule(nn.Module):
     def __init__(
         self,
-        dimension: int,
+        fourier_filtering_dict:Dict,
         n_measurements: int,
         detector_size: int,
         device: torch.device,
-        filter_name: str,
-        training_mode: bool,
+
     ):
         super(FourierFilteringModule, self).__init__()
-        if dimension != 1:
+        self.dimension = fourier_filtering_dict['dimension']
+        if self.dimension != 1:
             raise NotImplementedError(
                 "Fourier Filtering module not implemented for dimension !=1"
             )
-
-        self.dimension = dimension
         self.n_measurements = n_measurements
         self.detector_size = detector_size
 
-        self.filter = FilterModule(
-            dimension, self.detector_size, filter_name, 0.1, device, training_mode
-        )
+        self.filter = FilterModule(self.dimension, self.detector_size, fourier_filtering_dict['name'], 0.1, device, fourier_filtering_dict['train'])
 
     def forward(self, sinogram: torch.Tensor) -> torch.Tensor:
         # sinogram size : [B_s, n_measurements, Det_size]
@@ -468,54 +468,69 @@ class FourierFilteringModule(nn.Module):
 class Iteration(nn.Module):
     def __init__(
         self,
-        dimension: int,
         odl_backend: ODLBackend,
         n_measurements: int,
         detector_size: int,
-        n_primal: int,
-        n_dual: int,
-        n_filters_primal: int,
-        n_filters_dual: int,
-        fourier_filtering: bool,
-        device: torch.device,
-        filter_name="",
-        training_mode=False,
+        primal_dict:Dict,
+        dual_dict:Dict,
+        fourier_filtering_dict:Dict,
+        device: torch.device
     ):
         super(Iteration, self).__init__()
-        self.dimension = dimension
-        (
-            pytorch_operator,
-            pytorch_operator_adj,
-            operator_norm,
-        ) = odl_backend.get_pytorch_operators(device)
-        self.op = pytorch_operator
-        self.op_adj = pytorch_operator_adj
-        self.operator_norm = operator_norm
+
+        (self.op, self.op_adj, self.operator_norm) = odl_backend.get_pytorch_operators(device)
+
         self.n_measurements = n_measurements
-        self.fourier_filtering = fourier_filtering
 
-        self.primal_block = Unet(2, n_primal + 1, n_primal, n_filters_primal).to(device)
-        self.dual_block = Unet(
-            dimension,
-            (n_dual + 2) * self.n_measurements,
-            n_dual * self.n_measurements,
-            n_filters_dual,
-        ).to(device)
+        primal_block_dict = {
+                'dimension' : primal_dict['dimension'],
+                'n_channels_input' : primal_dict['n_layers'] + 1,
+                'n_channels_output' : primal_dict['n_layers'],
+                'n_filters' : primal_dict['n_filters']
+            }
+        if primal_dict['name'] == 'Unet':
+            self.primal_block = Unet(primal_block_dict)
+        elif primal_dict['name'] == 'cnn_block':
+            self.primal_block = CnnBlock(primal_block_dict)
+        else:
+            raise NotImplementedError(f'Primal name {primal_dict["name"]} not implemented')
 
-        if self.fourier_filtering:
+        self.primal_block = self.primal_block.to(device)
+
+        self.dual_dimension = dual_dict['dimension']
+        dual_block_dict = {
+                'dimension' : dual_dict['dimension'],
+                'n_channels_input' : (dual_dict['n_layers'] + 2),
+                'n_channels_output' : dual_dict['n_layers'],
+                'n_filters' : dual_dict['n_filters']
+            }
+        if self.dual_dimension == 1:
+            dual_block_dict['n_channels_input'] *= self.n_measurements
+            dual_block_dict['n_channels_output'] *= self.n_measurements
+
+        if dual_dict['name'] == 'Unet':
+            self.dual_block = Unet(dual_block_dict)
+        elif dual_dict['name'] == 'cnn_block':
+            self.dual_block = CnnBlock(dual_block_dict)
+        else:
+            raise NotImplementedError(f'Dual name {dual_dict["name"]} not implemented')
+
+
+        self.dual_block = self.dual_block.to(device)
+
+        self.fourier_filtering_dict = fourier_filtering_dict
+        if fourier_filtering_dict['is_filter']:
             self.fourier_sinogram_filtering_module = FourierFilteringModule(
-                dimension,
+                fourier_filtering_dict,
                 self.n_measurements,
                 detector_size,
                 device,
-                filter_name,
-                training_mode,
             )
 
     def dual_operation(
         self, primal: torch.Tensor, dual: torch.Tensor, input_sinogram: torch.Tensor
     ) -> torch.Tensor:
-        if self.dimension == 1:
+        if self.dual_dimension == 1:
             """
             ### Forward and reduce dimension
             x = self.op(primal[:, 0:1, ...]).squeeze()
@@ -530,14 +545,13 @@ class Iteration(nn.Module):
                 torch.cat(
                     [
                         dual,
-                        self.op(primal[:, 0:1, ...]).squeeze(dim=1)
-                        / self.operator_norm,
+                        self.op(primal[:, 0:1, ...]).squeeze(dim=1) / self.operator_norm,
                         input_sinogram / self.operator_norm,
                     ],
                     dim=1,
                 )
             )
-        elif self.dimension == 2:
+        elif self.dual_dimension == 2:
             return dual + self.dual_block(
                 torch.cat(
                     [
@@ -554,7 +568,7 @@ class Iteration(nn.Module):
     def primal_operation(
         self, primal: torch.Tensor, dual: torch.Tensor
     ) -> torch.Tensor:
-        if self.dimension == 1:
+        if self.dual_dimension == 1:
             """
             ### Get first dual channel, unsqueeze and back-projection
             x = self.op_adj(dual.unsqueeze(1)) / self.operator_norm
@@ -575,7 +589,7 @@ class Iteration(nn.Module):
                     dim=1,
                 )
             )
-        elif self.dimension == 2:
+        elif self.dual_dimension == 2:
             return primal + self.primal_block(
                 torch.cat(
                     [primal, self.op_adj(dual[:, 0:1, ...]) / self.operator_norm], dim=1
@@ -589,88 +603,62 @@ class Iteration(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # dual block
         dual = self.dual_operation(primal, dual, input_sinogram)
-        if self.fourier_filtering:
+        if self.fourier_filtering_dict['is_filter']:
             dual = self.fourier_sinogram_filtering_module(dual)
         # primal block
         return self.primal_operation(primal, dual), dual
 
-
 class LearnedPrimalDual(nn.Module):
     def __init__(
         self,
-        dimension: int,
         odl_backend: ODLBackend,
-        n_primal: int,
-        n_dual: int,
-        n_iterations: int,
-        n_filters_primal: int,
-        n_filters_dual: int,
-        fourier_filtering: bool,
-        device: torch.device,
-        fourier_filter_name="",
-        training_mode=False,
+        network_dict:Dict,
+        device: torch.device
     ):
         super(LearnedPrimalDual, self).__init__()
-        self.dimension = dimension
         self.odl_backend = odl_backend
+        ### Unpacking Dict
+        primal_dict  = network_dict['primal_dict']
+        dual_dict    = network_dict['dual_dict']
+        n_iterations = network_dict['n_iterations']
+        fourier_filtering_dict = network_dict['fourier_filtering_dict']
+
         self.operator_domain_shape = self.odl_backend.space_dict["shape"]  # type:ignore
-        if dimension == 1:
-            self.n_measurements = self.odl_backend.angle_partition_dict["shape"]
-        elif dimension == 2:
-            self.n_measurements = 1
-        else:
-            raise ValueError
+        self.n_measurements = self.odl_backend.angle_partition_dict["shape"]
         self.detector_size = self.odl_backend.detector_partition_dict["shape"]
         self.adjoint_domain_shape = [self.n_measurements, self.detector_size]
+        self.n_primal_layers = primal_dict['n_layers']
+
+        self.dual_dimension = dual_dict['dimension']
+        self.n_dual_layers  = dual_dict['n_layers']
 
         self.device = device
-        self.n_primal = n_primal
-        self.n_dual = n_dual
         self.n_iterations = n_iterations
-        self.iteration_modules = torch.nn.ModuleDict(
-            {
+        self.iteration_modules = torch.nn.ModuleDict({
                 f"iteration_{i}": Iteration(
-                    dimension,
                     odl_backend,
                     self.n_measurements,
                     self.detector_size,
-                    n_primal,
-                    n_dual,
-                    n_filters_primal,
-                    n_filters_dual,
-                    fourier_filtering,
-                    device,
-                    fourier_filter_name,
-                    training_mode,
-                )
-                for i in range(self.n_iterations)
-            }
-        )
+                    primal_dict,
+                    dual_dict,
+                    fourier_filtering_dict,
+                    device
+                ) for i in range(self.n_iterations)
+            })
 
-    def forward(
-        self, input_sinogram: torch.Tensor, just_infer=False
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        primal = torch.zeros(
-            [input_sinogram.size()[0], self.n_primal] + self.operator_domain_shape
-        ).to(
-            self.device
-        )  # type:ignore
+    def forward(self, input_sinogram: torch.Tensor, just_infer=False) -> tuple[torch.Tensor, torch.Tensor]:
 
-        if self.dimension == 1:
+        primal = torch.zeros([input_sinogram.size()[0], self.n_primal_layers] + self.operator_domain_shape).to(self.device)  # type:ignore
+
+        if self.dual_dimension == 1:
+            input_sinogram = torch.squeeze(input_sinogram, dim=1)
             dual = torch.zeros(
                 input_sinogram.size()[0],
-                self.n_dual * self.adjoint_domain_shape[0],
-                self.adjoint_domain_shape[1],
-            ).to(
-                self.device
-            )  # type:ignore
+                self.n_dual_layers * self.adjoint_domain_shape[0],
+                self.adjoint_domain_shape[1]).to(self.device)  # type:ignore
 
-        elif self.dimension == 2:
-            dual = torch.zeros(
-                [input_sinogram.size()[0], self.n_dual] + self.adjoint_domain_shape
-            ).to(
-                self.device
-            )  # type:ignore
+        elif self.dual_dimension == 2:
+            dual = torch.zeros([input_sinogram.size()[0], self.n_dual_layers] + self.adjoint_domain_shape).to(self.device)  # type:ignore
 
         else:
             raise ValueError
@@ -683,9 +671,9 @@ class LearnedPrimalDual(nn.Module):
         if just_infer:
             return primal[:, 0:1]  # type:ignore
         else:
-            if self.dimension == 1:
-                return primal[:, 0:1], dual[:, : self.n_measurements]
-            elif self.dimension == 2:
+            if self.dual_dimension == 1:
+                return primal[:, 0:1], dual[:, : self.n_measurements].unsqueeze(1)
+            elif self.dual_dimension == 2:
                 return primal[:, 0:1], dual[:, :1]
             else:
                 raise ValueError

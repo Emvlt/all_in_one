@@ -16,36 +16,16 @@ from metadata_checker import check_metadata
 from transforms import Normalise, ToFloat  # type:ignore
 
 
-def get_inference_function(
-    metadata_dict: Dict,
-    pipeline: str,
-    odl_backend: ODLBackend,
-    experiment_models_folder_path: pathlib.Path,
-) -> Callable:
-
+def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBackend,experiment_models_folder_path: pathlib.Path) -> Callable:
     architecture_dict = metadata_dict["architecture_dict"]
     if pipeline == "reconstruction":
         architecture_name = architecture_dict["reconstruction"]["name"]
         print(f"\t \t  Loading inference function for {architecture_name}")
+        reconstruction_device = torch.device(architecture_dict["reconstruction"]["device_name"])
         if architecture_name == "lpd":
-            reconstruction_device = torch.device(
-                architecture_dict["reconstruction"]["device_name"]
-            )
             lpd_network = LearnedPrimalDual(
-                dimension=architecture_dict["reconstruction"]["dimension"],
                 odl_backend=odl_backend,
-                n_primal=architecture_dict["reconstruction"]["n_primal"],
-                n_dual=architecture_dict["reconstruction"]["n_dual"],
-                n_iterations=architecture_dict["reconstruction"]["lpd_n_iterations"],
-                n_filters_primal=architecture_dict["reconstruction"][
-                    "lpd_n_filters_primal"
-                ],
-                n_filters_dual=architecture_dict["reconstruction"][
-                    "lpd_n_filters_dual"
-                ],
-                fourier_filtering=architecture_dict["reconstruction"][
-                    "fourier_filtering"
-                ],
+                network_dict=architecture_dict["reconstruction"],
                 device=reconstruction_device,
             )
             try:
@@ -69,16 +49,12 @@ def get_inference_function(
             )
 
         elif architecture_name == "fourier_filtering":
-            reconstruction_device = torch.device(
-                architecture_dict["reconstruction"]["device_name"]
-            )
+
             fourier_filtering_module = FourierFilteringModule(
-                dimension=architecture_dict["reconstruction"]["dimension"],
+                fourier_filtering_dict=architecture_dict["reconstruction"],
                 n_measurements=odl_backend.angle_partition_dict["shape"],
                 detector_size=odl_backend.detector_partition_dict["shape"],
-                device=reconstruction_device,
-                filter_name=architecture_dict["reconstruction"]["filter_name"],
-                training_mode=False,
+                device=reconstruction_device
             )
             try:
                 load_network(
@@ -112,7 +88,6 @@ def get_inference_function(
 
 def infer_slice(
     odl_backend: ODLBackend,
-    dimension: int,
     inference_function: Callable,
     patient_slice_path: pathlib.Path,
     dataset: LIDC_IDRI,
@@ -121,8 +96,7 @@ def infer_slice(
     inference_name,
     reconstruction_transforms: Dict,
 ):
-    reconstruction = (
-        dataset.get_reconstruction_tensor(patient_slice_path)
+    reconstruction = (dataset.get_reconstruction_tensor(patient_slice_path)
         .unsqueeze(0)
         .to(reconstruction_device)
     )
@@ -147,14 +121,10 @@ def infer_slice(
         )
 
     elif inference_name == "lpd":
-        if dimension == 1:
-            sinogram = torch.squeeze(sinogram, dim=1)
         with torch.no_grad():
             approximated_reconstruction, _ = inference_function(sinogram)
 
     elif inference_name == "fourier_filtering":
-        if dimension == 1:
-            sinogram = torch.squeeze(sinogram, dim=1)
         filtered_sinogram: torch.Tensor = inference_function(sinogram)
         approximated_reconstruction = odl_backend.get_reconstruction(
             filtered_sinogram.unsqueeze(0)
@@ -193,7 +163,6 @@ def qualitative_evaluation(
         )
         approximated_reconstruction, reconstruction = infer_slice(
             odl_backend,
-            metadata_dict["architecture_dict"]["reconstruction"]["dimension"],
             inference_function,
             patient_slice_path,
             dataset,
@@ -254,9 +223,6 @@ def quantitative_evaluation(
                 for patient_slice_path in patient_indices_list:
                     approximated_reconstruction, reconstruction = infer_slice(
                         odl_backend,
-                        metadata_dict["architecture_dict"]["reconstruction"][
-                            "dimension"
-                        ],
                         inference_function,
                         patient_slice_path,
                         dataset,

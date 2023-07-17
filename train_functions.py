@@ -3,17 +3,9 @@ import pathlib
 
 from torch.utils.data import DataLoader
 import torch
-from kymatio.torch import Scattering2D
 from torch.utils.tensorboard import SummaryWriter  # type:ignore
-from torchvision.transforms import Compose
-import matplotlib.pyplot as plt
 
-from models import (
-    FourierFilteringModule,
-    LearnedPrimalDual,
-    Unet,
-    load_network,
-)  # type:ignore
+from models import FourierFilteringModule, LearnedPrimalDual, Unet, load_network  # type:ignore
 from backends.odl import ODLBackend
 from transforms import Normalise, PoissonSinogramTransform  # type:ignore
 from metrics import PSNR  # type:ignore
@@ -32,6 +24,40 @@ def loss_name_to_loss_function(loss_function_name: str):
             f'Loss function called {loss_function_name} is not implemented, currently only ["MSE", "L1", "BCE"] are supported'
         )
 
+def unpack_architecture_dicts(architecture_dict:Dict, odl_backend=None) -> Dict[str, torch.nn.Module]:
+    networks = {}
+    for architecture_name, network_dict in architecture_dict.items():
+        network_name = network_dict['name']
+        current_device = network_dict['device_name']
+        print(f'Unpacking {architecture_name} architecture: {network_name} network on device {current_device}')
+        if architecture_name == 'reconstruction':
+            if network_name =='lpd':
+                network = LearnedPrimalDual(odl_backend, network_dict, current_device) # type:ignore
+            elif network_name == 'fourier_filtering_module':
+                network = FourierFilteringModule(
+                    network_dict,
+                    n_measurements=odl_backend.angle_partition_dict["shape"], # type:ignore
+                    detector_size=odl_backend.detector_partition_dict["shape"], # type:ignore
+                    device=current_device
+                    )
+
+            else:
+                raise NotImplementedError(f"{network_name} not implemented")
+
+        elif architecture_name =='segmentation':
+
+            if network_name =='Unet':
+                network = Unet(network_dict).to(current_device)
+
+            else:
+                raise NotImplementedError(f"{network_name} not implemented")
+
+        else:
+            raise NotImplementedError(f"{architecture_name} not implemented")
+
+        networks[architecture_name] = network
+
+    return networks
 
 def train_reconstruction_network(
     odl_backend: ODLBackend,
@@ -45,44 +71,18 @@ def train_reconstruction_network(
 ):
 
     reconstruction_dict = architecture_dict["reconstruction"]
-    dimension = reconstruction_dict["dimension"]
 
     reconstruction_device = torch.device(reconstruction_dict["device_name"])
 
-    if reconstruction_dict["name"] == "lpd":
-        reconstruction_net = LearnedPrimalDual(
-            dimension=dimension,
-            odl_backend=odl_backend,
-            n_primal=reconstruction_dict["n_primal"],
-            n_dual=reconstruction_dict["n_dual"],
-            n_iterations=reconstruction_dict["lpd_n_iterations"],
-            n_filters_primal=reconstruction_dict["lpd_n_filters_primal"],
-            n_filters_dual=reconstruction_dict["lpd_n_filters_dual"],
-            fourier_filtering=reconstruction_dict["fourier_filtering"],
-            device=reconstruction_device,
-        )
-    else:
-        raise NotImplementedError(f"{reconstruction_dict['name']} not implemented")
+    reconstruction_net = unpack_architecture_dicts(architecture_dict, odl_backend)['reconstruction']
+    reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict["load_path"])
 
-    reconstruction_net = load_network(
-        save_folder_path, reconstruction_net, reconstruction_dict["load_path"]
+    run_writer.add_hparams(
+        hparam_dict={"Number of model parameters": sum(p.numel() for p in reconstruction_net.parameters())},
+        metric_dict={}
     )
 
-    if training_dict["scattering"]:
-        scattered_loss = loss_name_to_loss_function(
-            training_dict["scattering_dict"]["scattered_loss"]
-        )
-        print("Initialising Scattering Operator...")
-        scattering_operator = Scattering2D(
-            J=training_dict["scattering_dict"]["J"],
-            shape=odl_backend.space_dict["shape"],
-            L=training_dict["scattering_dict"]["L"],
-            max_order=training_dict["scattering_dict"]["max_order"],
-        ).to(reconstruction_device)
-
-    reconstruction_loss = loss_name_to_loss_function(
-        training_dict["reconstruction_loss"]
-    )
+    reconstruction_loss = loss_name_to_loss_function(training_dict["reconstruction_loss"])
     sinogram_loss = loss_name_to_loss_function(training_dict["sinogram_loss"])
 
     psnr_loss = PSNR()
@@ -110,30 +110,14 @@ def train_reconstruction_network(
             optimiser.zero_grad()
             sinogram = odl_backend.get_sinogram(reconstruction)
 
-            if dimension == 1:
-                sinogram = torch.squeeze(sinogram, dim=1)
-
             sinogram = sinogram_transforms(sinogram)
 
-            approximated_reconstruction, approximated_sinogram = reconstruction_net(
-                sinogram
-            )
+            approximated_reconstruction, approximated_sinogram = reconstruction_net(sinogram)
 
-            loss_recontruction = reconstruction_loss(
-                approximated_reconstruction, reconstruction
-            )
+            loss_recontruction = reconstruction_loss(approximated_reconstruction, reconstruction)
             loss_sinogram = sinogram_loss(approximated_sinogram, sinogram)
 
-            total_loss = (
-                1 - training_dict["dual_loss_weighting"]
-            ) * loss_recontruction + training_dict[
-                "dual_loss_weighting"
-            ] * loss_sinogram
-
-            if training_dict["scattering"]:
-                loss_scattered = scattered_loss(scattering_operator(approximated_reconstruction),scattering_operator(reconstruction))  # type:ignore
-                total_loss += training_dict["scattering_dict"]["scattered_loss_weighting"] * loss_scattered
-
+            total_loss = (1 - training_dict["dual_loss_weighting"]) * loss_recontruction + training_dict["dual_loss_weighting"] * loss_sinogram
             total_loss.backward()
 
             optimiser.step()
@@ -141,31 +125,34 @@ def train_reconstruction_network(
             if index % 10 == 0:
                 if verbose:
                     print(f"\n Metrics at step {index} of epoch {epoch}")
-                    print(f'Image {training_dict["reconstruction_loss"]} : {loss_recontruction.item()}')
-                    print(f"Image PSNR : {psnr_loss(approximated_reconstruction, reconstruction).item()}")
-                    print(f'Sinogram {training_dict["sinogram_loss"]} : {loss_sinogram.item()}')
-                    print(f"Sinogram PSNR : {psnr_loss(approximated_sinogram, sinogram).item()}")
-                    if training_dict["scattering"]:
-                        print(f'Scattered {training_dict["scattering_dict"]["scattered_loss"]} : {loss_scattered.item()}')  # type:ignore
+                    print(f'Primal {training_dict["reconstruction_loss"]} : {loss_recontruction.item()}')
+                    print(f"Primal PSNR : {psnr_loss(approximated_reconstruction, reconstruction).item()}")
+                    print(f'Dual {training_dict["sinogram_loss"]} : {loss_sinogram.item()}')
+                    print(f"Dual PSNR : {psnr_loss(approximated_sinogram, sinogram).item()}")
 
                 run_writer.add_scalar(
-                    f'Image {training_dict["reconstruction_loss"]} Loss',
+                    f'Primal {training_dict["reconstruction_loss"]} Loss',
                     loss_recontruction.item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
                 run_writer.add_scalar(
-                    "Image PSNR Loss",
+                    "Primal PSNR Loss",
                     psnr_loss(approximated_reconstruction, reconstruction).item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
                 run_writer.add_scalar(
-                    f'Sinogram {training_dict["sinogram_loss"]} Loss',
+                    f'Dual {training_dict["sinogram_loss"]} Loss',
                     loss_sinogram.item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
                 run_writer.add_scalar(
-                    "Sinogram PSNR Loss",
+                    "Dual PSNR Loss",
                     psnr_loss(approximated_sinogram, sinogram).item(),
+                    global_step=index + epoch * train_dataloader.__len__(),
+                )
+                run_writer.add_scalar(
+                    f'Primal {training_dict["reconstruction_loss"]} / Dual {training_dict["sinogram_loss"]}',
+                    loss_recontruction.item() / loss_sinogram.item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
 
@@ -179,7 +166,7 @@ def train_reconstruction_network(
                             display_transforms(sinogram),
                             display_transforms(approximated_sinogram),
                         ),
-                        dim=display_dim+dimension,
+                        dim=display_dim+2,
                     ),
                     "current_sinogram_approximation_target.jpg",
                 )
@@ -197,7 +184,6 @@ def train_reconstruction_network(
 
         torch.save(reconstruction_net.state_dict(), reconstruction_model_file_save_path)
 
-
 def train_segmentation_network(
     odl_backend: ODLBackend,
     architecture_dict: Dict,
@@ -211,24 +197,9 @@ def train_segmentation_network(
 
     segmentation_device = torch.device(architecture_dict["segmentation"]["device_name"])
 
-    if architecture_dict["segmentation"]["name"] == "Unet":
-        segmentation_net = Unet(
-            dimension=2,
-            n_channels_input=architecture_dict["segmentation"]["Unet_input_channels"],
-            n_channels_output=architecture_dict["segmentation"]["Unet_output_channels"],
-            n_filters=architecture_dict["segmentation"]["Unet_n_filters"],
-            regression=False,
-        ).to(segmentation_device)
-    else:
-        raise NotImplementedError(
-            f"{architecture_dict['segmentation']['name']} not implemented"
-        )
-
-    segmentation_net = load_network(
-        save_folder_path,
-        segmentation_net,
-        architecture_dict["segmentation"]["load_path"],
-    )
+    networks = unpack_architecture_dicts(architecture_dict, odl_backend)
+    segmentation_net = networks['segmentation']
+    segmentation_net = load_network(save_folder_path, segmentation_net, architecture_dict["segmentation"]["load_path"])
 
     segmentation_loss = loss_name_to_loss_function(training_dict["segmentation_loss"])
 
@@ -239,38 +210,9 @@ def train_segmentation_network(
     )
 
     if training_dict["reconstructed"]:
-        ## Unpacking dict
         reconstruction_dict = architecture_dict["reconstruction"]
-        dimension = reconstruction_dict["dimension"]
         ## Define reconstruction device
-        reconstruction_device = torch.device(reconstruction_dict["device_name"])
-
-        ## Load reconstruction Network
-        if reconstruction_dict["name"] == "lpd":
-            reconstruction_net = LearnedPrimalDual(
-                dimension=dimension,
-                odl_backend=odl_backend,
-                n_primal=reconstruction_dict["n_primal"],
-                n_dual=reconstruction_dict["n_dual"],
-                n_iterations=reconstruction_dict["lpd_n_iterations"],
-                n_filters_primal=reconstruction_dict["lpd_n_filters_primal"],
-                n_filters_dual=reconstruction_dict["lpd_n_filters_dual"],
-                fourier_filtering=reconstruction_dict["fourier_filtering"],
-                device=reconstruction_device,
-            )
-
-        elif reconstruction_dict["name"] == "fourier_filtering":
-            reconstruction_net = FourierFilteringModule(
-                dimension=dimension,
-                n_measurements=odl_backend.angle_partition_dict["shape"],
-                detector_size=odl_backend.detector_partition_dict["shape"],
-                device=segmentation_device,
-                filter_name=reconstruction_dict["filter_name"],
-                training_mode=reconstruction_dict["train"],
-            )
-        else:
-            raise NotImplementedError(f"{reconstruction_dict['name']} not implemented")
-
+        reconstruction_net = networks['reconstruction']
         try:
             reconstruction_net = load_network(
                 save_folder_path, reconstruction_net, reconstruction_dict["load_path"]
@@ -299,8 +241,6 @@ def train_segmentation_network(
                 with torch.no_grad():
                     ## Re-sample
                     sinogram = odl_backend.get_sinogram(reconstruction)
-                    if dimension == 1:  # type:ignore
-                        sinogram = torch.squeeze(sinogram, dim=1)
                     sinogram = sinogram_transforms(sinogram)  # type:ignore
                     ## Reconstruct
                     if reconstruction_dict["name"] == "lpd":  # type:ignore
