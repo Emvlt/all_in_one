@@ -204,7 +204,7 @@ def quantitative_evaluation(
     ## Default error function
     error_function = PSNR()
 
-    for patient_id in dataset.testing_patients_list:
+    for patient_id in args.patient_list:
         print(f"Evaluating patient {patient_id}")
         if patient_id in evaluation_dict:
             print(f"Patient {patient_id} already evaluated, passing...")
@@ -220,7 +220,8 @@ def quantitative_evaluation(
                     "reconstruction"
                 ]["device_name"]
                 patient_indices_list = dataset.patient_id_to_slices_of_interest[patient_id]
-                for patient_slice_path in patient_indices_list:
+                for slice_index in patient_indices_list:
+                    patient_slice_path = dataset.path_to_processed_dataset.joinpath(f"{patient_id}/slice_{slice_index}.npy")
                     approximated_reconstruction, reconstruction = infer_slice(
                         odl_backend,
                         inference_function,
@@ -278,17 +279,27 @@ def evaluate_metadata_file(
     }
 
     ## Dataset and Dataloader
-    lidc_idri_dataset = LIDC_IDRI(
-        DATASET_PATH,
-        pipeline,
-        odl_backend,
-        data_feeding_dict["training_proportion"],
-        False,
-        data_feeding_dict["is_subset"],
-        transform=transforms,
-        verbose=False,
-        patient_list=args.patient_list,
-    )
+    if data_feeding_dict["is_subset"]:
+        lidc_idri_dataset = LIDC_IDRI(
+            DATASET_PATH,
+            str(pipeline),
+            odl_backend,
+            data_feeding_dict["training_proportion"],
+            data_feeding_dict["train"],
+            data_feeding_dict["is_subset"],
+            transform=transforms,
+            subset=data_feeding_dict['subset']
+        )
+    else:
+        lidc_idri_dataset = LIDC_IDRI(
+            DATASET_PATH,
+            str(pipeline),
+            odl_backend,
+            data_feeding_dict["training_proportion"],
+            data_feeding_dict["train"],
+            data_feeding_dict["is_subset"],
+            transform=transforms
+        )
 
     inference_function = get_inference_function(
         metadata_dict, pipeline, odl_backend, experiment_models_folder_path
@@ -365,18 +376,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--platform", required=True)
 
-    parser.add_argument("--pipeline_evaluation", dest="store_true")
+    parser.add_argument("--pipeline_evaluation", action="store_true")
     parser.add_argument("--pipeline", required=False)
 
-    parser.add_argument(
-        "--file_evaluation", dest="pipeline_evaluation", action="store_false"
-    )
+    parser.add_argument("--file_evaluation", dest="pipeline_evaluation", action="store_false"    )
     parser.add_argument("--metadata_path", required=False)
 
     parser.add_argument("--quantitative", action="store_true")
     parser.add_argument("--qualitative", dest="quantitative", action="store_false")
 
-    parser.add_argument("--patient_list", default=["LIDC-IDRI-0893", "LIDC-IDRI-1002"])
+    parser.add_argument("--patient_list", default=["LIDC-IDRI-0050", "LIDC-IDRI-0893", "LIDC-IDRI-1002"])
     parser.set_defaults(quantitative=True)
     args = parser.parse_args()
 

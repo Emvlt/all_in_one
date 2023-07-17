@@ -188,6 +188,7 @@ class LIDC_IDRI(Dataset):
 
 
     def get_reconstruction_tensor(self, file_path: pathlib.Path) -> torch.Tensor:
+        print(file_path)
         tensor = torch.from_numpy(np.load(file_path)).unsqueeze(0)
         return tensor
 

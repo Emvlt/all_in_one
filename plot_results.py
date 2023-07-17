@@ -35,6 +35,12 @@ EXPERIMENT_TRACKER = {
         "lpd_1_layer_2d_sinogram_filtering_full_dataset",
         "filtered_backprojection_hann_filter",
     ],
+    "lpd_comparison":[
+
+        'vanilla_lpd',
+
+        '1d_lpd'
+    ]
 }
 
 
@@ -73,12 +79,12 @@ if __name__ == "__main__":
 
     parser.add_argument("--pipeline", required=True)
 
-    parser.add_argument("--pipeline_evaluation", dest="store_true")
+    parser.add_argument("--pipeline_evaluation", action="store_true")
 
     parser.add_argument("--setting_evaluation", dest="pipeline_evaluation", action="store_false")
     parser.add_argument("--setting", required=False)
 
-    parser.add_argument("--patient_list", default=["LIDC-IDRI-0893", "LIDC-IDRI-1002"])
+    parser.add_argument("--patient_list", default=["LIDC-IDRI-0050", "LIDC-IDRI-0893", "LIDC-IDRI-1002"])
     parser.set_defaults(quantitative=True)
 
 
