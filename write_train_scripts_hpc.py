@@ -8,7 +8,8 @@ from utils import load_json
 DEFAULT_WALLCLOCK_TIME = '02:00:00'
 
 WALLCLOCK_TIME_DICT = {
-    '1d_lpd_unet':'06:00:00'
+    'reconstruction/100_percent_measurements/lpd_unet_1_iteration':'12:00:00',
+    'reconstruction/100_percent_measurements/1d_lpd_unet_1_iteration':'12:00:00'
 }
 
 def compute_n_gpus(metadata_dict):
@@ -27,7 +28,10 @@ def write_train_script(metadata_path:pathlib.Path):
     experiment_folder_name = metadata_path.parent.stem
     run_name = metadata_path.stem
     print('\t' + f'Pipeline: {pipeline}; Experiment folder name: {experiment_folder_name}; run name: {run_name}')
-    train_script_path = pathlib.Path(f'train_scripts_hpc/{pipeline}/{experiment_folder_name}/test.sh')
+    train_script_path = pathlib.Path(f'train_scripts_hpc/{pipeline}/{experiment_folder_name}/{run_name}.sh')
+    if train_script_path.is_file():
+        print(f'{train_script_path} already exists, passing')
+        return
     with open(train_script_path, 'w', newline='\n') as csvfile:
         csv_writer = csv.writer(csvfile, delimiter='\n', quotechar=None, escapechar='\t')
         ### Write Shebang
@@ -49,7 +53,7 @@ def write_train_script(metadata_path:pathlib.Path):
 
         csv_writer.writerow([f'numnodes=$SLURM_JOB_NUM_NODES'])
         csv_writer.writerow([f'numtasks=$SLURM_NTASKS'])
-        csv_writer.writerow(['mpi_tasks_per_node=$(echo "$SLURM_TASKS_PER_NODE"' + " | sed -e  's/^\([0-9][0-9]*\).*$/\1/')"])
+        csv_writer.writerow([r'mpi_tasks_per_node=$(echo "$SLURM_TASKS_PER_NODE"' + r" | sed -e  's/^\([0-9][0-9]*\).*$/\1/')"])
 
         csv_writer.writerow(['. /etc/profile.d/modules.sh'])
         csv_writer.writerow(['module purge'])
@@ -95,11 +99,14 @@ def recursively_write_train_script(metadata_folder_path: pathlib.Path):
         if child_path.is_dir():
             recursively_write_train_script(child_path)
         else:
-            write_train_script(child_path)
+            if child_path.is_file():
+                write_train_script(child_path)
+            else:
+                pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--metadata_folder_path')
+    parser.add_argument('--metadata_folder_path', default = 'metadata_folder')
     args = parser.parse_args()
 
     metadata_file_path = pathlib.Path(args.metadata_folder_path)
