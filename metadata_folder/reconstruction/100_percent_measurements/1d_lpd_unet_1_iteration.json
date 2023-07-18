@@ -24,22 +24,22 @@
             "train":true,
             "primal_dict":{
                 "dimension":2,
-                "name":"cnn_block",
+                "name":"Unet",
                 "n_layers":1,
-                "n_filters":32
+                "n_filters":8
             },
             "dual_dict":{
                 "dimension":1,
-                "name":"cnn_block",
+                "name":"Unet",
                 "n_layers":1,
-                "n_filters":32
+                "n_filters":8
             },
-            "n_iterations":5,
+            "n_iterations":1,
             "fourier_filtering_dict":{
                 "is_filter":false
             },
-            "load_path":"reconstruction/100_percent_measurements/1d_lpd.pth",
-            "save_path":"reconstruction/100_percent_measurements/1d_lpd.pth",
+            "load_path":"reconstruction/100_percent_measurements/1d_lpd_unet.pth",
+            "save_path":"reconstruction/100_percent_measurements/1d_lpd_unet.pth",
             "device_name":"cuda:0"
         }
     },

@@ -188,7 +188,6 @@ class LIDC_IDRI(Dataset):
 
 
     def get_reconstruction_tensor(self, file_path: pathlib.Path) -> torch.Tensor:
-        print(file_path)
         tensor = torch.from_numpy(np.load(file_path)).unsqueeze(0)
         return tensor
 
@@ -291,7 +290,10 @@ class LIDC_IDRI(Dataset):
                 reconstruction_tensor = self.transform["reconstruction_transforms"](
                     reconstruction_tensor
                 )
-            return reconstruction_tensor
+            if self.training:
+                return reconstruction_tensor
+            else:
+                return reconstruction_tensor, slice_index
 
         elif self.pipeline == "diagnostic":
             return self.patient_id_to_diagnosis[patient_index]

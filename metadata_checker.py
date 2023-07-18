@@ -46,12 +46,6 @@ def check_scan_parameter_dict(scan_parameter_dict:Dict):
     assert 'beam_geometry' in scan_parameter_dict['geometry_dict'], 'beam_geometry not provided in geometry dictionary'
 
 def check_training_dict(training_dict:Dict):
-    assert "num_workers" in training_dict.keys(), "provide number of dataloader workers"
-    check_integer('num_workers', training_dict['num_workers'])
-
-    assert "batch_size" in training_dict.keys(), "provide batch size"
-    check_integer('batch_size', training_dict['batch_size'])
-
     assert "learning_rate" in training_dict.keys(), "provide learning rate"
     check_float('learning_rate', training_dict['learning_rate'])
 
@@ -196,6 +190,12 @@ def check_data_feeding_consistency(data_feeding_dict:Dict):
 
     assert 'is_subset' in data_feeding_dict.keys(), 'Provide is_subset argument to dict'
     check_boolean('is_subset', data_feeding_dict['is_subset'])
+
+    assert "num_workers" in data_feeding_dict.keys(), "provide number of dataloader workers"
+    check_integer('num_workers', data_feeding_dict['num_workers'])
+
+    assert "batch_size" in data_feeding_dict.keys(), "provide batch size"
+    check_integer('batch_size', data_feeding_dict['batch_size'])
 
     if data_feeding_dict['is_subset']:
         assert "subset" in data_feeding_dict.keys(), "provide subset list argument"

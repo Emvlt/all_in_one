@@ -6,6 +6,10 @@ import torch
 import json
 from torchvision.transforms import Compose
 import numpy as np
+from tqdm import tqdm
+from torch.utils.data import DataLoader
+
+import matplotlib.pyplot as plt
 
 from metrics import PSNR  # type:ignore
 from models import LearnedPrimalDual, load_network, FourierFilteringModule
@@ -100,9 +104,7 @@ def infer_slice(
         .unsqueeze(0)
         .to(reconstruction_device)
     )
-    reconstruction = reconstruction_transforms["reconstruction_transforms"](
-        reconstruction
-    )
+    reconstruction = reconstruction_transforms["reconstruction_transforms"](reconstruction)
     sinogram = odl_backend.get_sinogram(reconstruction)
     sinogram = sinogram_transforms(sinogram)
 
@@ -121,7 +123,6 @@ def infer_slice(
         )
 
     elif inference_name == "lpd":
-        with torch.no_grad():
             approximated_reconstruction, _ = inference_function(sinogram)
 
     elif inference_name == "fourier_filtering":
@@ -133,7 +134,6 @@ def infer_slice(
     else:
         raise NotImplementedError(f"Inference not implemented for {inference_name}")
     return approximated_reconstruction, reconstruction
-
 
 def qualitative_evaluation(
     metadata_dict: Dict,
@@ -188,61 +188,65 @@ def qualitative_evaluation(
         f"\t \t  ------- Finished qualitative evaluation {pipeline} pipeline: run {run_name} -------"
     )
 
-
 def quantitative_evaluation(
+    patient_id:str,
     evaluation_dict: Dict,
     pipeline: str,
     metadata_dict: Dict,
     odl_backend: ODLBackend,
     run_name: str,
     inference_function: Callable,
-    dataset: LIDC_IDRI,
-    transforms,
+    dataloader:DataLoader,
 ) -> Dict:
     ### Currently in a disgusting state ###
     print(f"------- Evaluating {pipeline} pipeline: run {run_name} -------")
     ## Default error function
     error_function = PSNR()
 
-    for patient_id in args.patient_list:
-        print(f"Evaluating patient {patient_id}")
-        if patient_id in evaluation_dict:
-            print(f"Patient {patient_id} already evaluated, passing...")
-        else:
-            evaluation_dict[patient_id] = []
+    if pipeline == "reconstruction":
+        inference_name = metadata_dict["architecture_dict"]["reconstruction"]["name"]
+        sinogram_transforms = Normalise()
+        reconstruction_device = metadata_dict["architecture_dict"]["reconstruction"]["device_name"]
+        for (reconstruction, slice_indices) in tqdm(dataloader):
+            reconstruction = reconstruction.to(reconstruction_device)
+            sinogram = odl_backend.get_sinogram(reconstruction)
+            sinogram = sinogram_transforms(sinogram)
+            with torch.no_grad():
+                if inference_name == "backprojection":
+                    approximated_reconstruction = inference_function(sinogram)
 
-            if pipeline == "reconstruction":
-                inference_name = metadata_dict["architecture_dict"]["reconstruction"][
-                    "name"
-                ]
-                sinogram_transforms = Normalise()
-                reconstruction_device = metadata_dict["architecture_dict"][
-                    "reconstruction"
-                ]["device_name"]
-                patient_indices_list = dataset.patient_id_to_slices_of_interest[patient_id]
-                for slice_index in patient_indices_list:
-                    patient_slice_path = dataset.path_to_processed_dataset.joinpath(f"{patient_id}/slice_{slice_index}.npy")
-                    approximated_reconstruction, reconstruction = infer_slice(
-                        odl_backend,
-                        inference_function,
-                        patient_slice_path,
-                        dataset,
-                        reconstruction_device,
-                        sinogram_transforms,
-                        inference_name,
-                        transforms,
-                    )
-                    evaluation_dict[patient_id].append(
-                        error_function(
-                            approximated_reconstruction, reconstruction
-                        ).item()
+                elif inference_name == "filtered_backprojection":
+                    ### Ugly conversions to numpy needed (are they really?) for fbp with odl backend
+                    sinogram = sinogram[0, 0].detach().cpu().numpy()
+                    approximated_reconstruction = np.asarray(inference_function(sinogram))
+                    approximated_reconstruction = (
+                        torch.from_numpy(approximated_reconstruction)
+                        .unsqueeze(0)
+                        .unsqueeze(0)
+                        .to(reconstruction_device)
                     )
 
-            else:
-                raise NotImplementedError
+                elif inference_name == "lpd":
+                        approximated_reconstruction, _ = inference_function(sinogram)
+
+                elif inference_name == "fourier_filtering":
+                    filtered_sinogram: torch.Tensor = inference_function(sinogram)
+                    approximated_reconstruction = odl_backend.get_reconstruction(
+                        filtered_sinogram.unsqueeze(0)
+                    )
+
+                else:
+                    raise NotImplementedError(f"Inference not implemented for {inference_name}")
+
+            for batch_index in range(approximated_reconstruction.size()[0]):
+                evaluation_dict[patient_id][int(slice_indices[batch_index])] = error_function(
+                    approximated_reconstruction[batch_index], reconstruction[batch_index]
+                    ).item()
+
+    else:
+        raise NotImplementedError
 
     return evaluation_dict
-
 
 def evaluate_metadata_file(
     metadata_file_path: pathlib.Path,
@@ -272,77 +276,81 @@ def evaluate_metadata_file(
     ## Sanity checks
     check_metadata(metadata_dict, verbose=False)
 
+    ## Get inference function
+    inference_function = get_inference_function(
+        metadata_dict, pipeline, odl_backend, experiment_models_folder_path
+    )
+
     ## Transforms
     transforms = {
         "reconstruction_transforms": Compose([ToFloat(), Normalise()]),
         "mask_transforms": Compose([ToFloat()]),
     }
 
-    ## Dataset and Dataloader
-    if data_feeding_dict["is_subset"]:
+
+    for patient_name in patients_list:
+
+        ## Dataset and Dataloader
         lidc_idri_dataset = LIDC_IDRI(
             DATASET_PATH,
             str(pipeline),
             odl_backend,
             data_feeding_dict["training_proportion"],
-            data_feeding_dict["train"],
-            data_feeding_dict["is_subset"],
+            False,
+            False,
             transform=transforms,
-            subset=data_feeding_dict['subset']
-        )
-    else:
-        lidc_idri_dataset = LIDC_IDRI(
-            DATASET_PATH,
-            str(pipeline),
-            odl_backend,
-            data_feeding_dict["training_proportion"],
-            data_feeding_dict["train"],
-            data_feeding_dict["is_subset"],
-            transform=transforms
+            patient_list = [patient_name])
+
+        if quantitative:
+            dataloader = DataLoader(
+            lidc_idri_dataset,
+            1,
+            shuffle=False,
+            drop_last=False,
+            num_workers=data_feeding_dict["num_workers"],
         )
 
-    inference_function = get_inference_function(
-        metadata_dict, pipeline, odl_backend, experiment_models_folder_path
-    )
+            results_file_path = pathlib.Path(f"results/{pipeline}/{experiment_folder_name}/{run_name}.json")
+            results_file_path.parent.mkdir(exist_ok=True, parents=True)
+            if results_file_path.is_file():
+                evaluation_dict = json.load(open(results_file_path))
+            else:
+                evaluation_dict = {}
 
-    if quantitative:
-        results_file_path = pathlib.Path(
-            f"results/{pipeline}/{experiment_folder_name}/{run_name}.json"
-        )
-        if results_file_path.is_file():
-            evaluation_dict = json.load(open(results_file_path))
+            if patient_name in evaluation_dict:
+                print(f"Patient {patient_name} already evaluated, passing...")
+            else:
+                evaluation_dict[patient_name] = {}
+
+                evaluation_dict = quantitative_evaluation(
+                    patient_name,
+                    evaluation_dict,
+                    pipeline,
+                    metadata_dict,
+                    odl_backend,
+                    run_name,
+                    inference_function,
+                    dataloader,
+                )  # type:ignore
+
+                with open(results_file_path, "w") as out_file:
+                    json.dump(evaluation_dict, out_file, indent=4)
         else:
-            evaluation_dict = {}
-
-        evaluation_dict = quantitative_evaluation(
-            evaluation_dict,
-            pipeline,
-            metadata_dict,
-            odl_backend,
-            run_name,
-            inference_function,
-            lidc_idri_dataset,
-            transforms,
-        )  # type:ignore
-
-        with open(results_file_path, "w") as out_file:
-            json.dump(evaluation_dict, out_file, indent=4)
-    else:
-        image_writer = PyPlotImageWriter(
-            pathlib.Path(f"images/{pipeline}/{experiment_folder_name}/{run_name}")
-        )
-        qualitative_evaluation(
-            metadata_dict,
-            pipeline,
-            odl_backend,
-            run_name,
-            inference_function,
-            lidc_idri_dataset,
-            "LIDC-IDRI-0222",
-            50,
-            image_writer,
-            transforms,
-        )
+            image_writer = PyPlotImageWriter(
+                pathlib.Path(f"images/{pipeline}/{experiment_folder_name}/{run_name}")
+            )
+            qualitative_evaluation(
+                metadata_dict,
+                pipeline,
+                odl_backend,
+                run_name,
+                inference_function,
+                lidc_idri_dataset,
+                "LIDC-IDRI-0222",
+                50,
+                image_writer,
+                transforms,
+            )
 
 
 def evaluate_experiment_folder(
@@ -385,7 +393,7 @@ if __name__ == "__main__":
     parser.add_argument("--quantitative", action="store_true")
     parser.add_argument("--qualitative", dest="quantitative", action="store_false")
 
-    parser.add_argument("--patient_list", default=["LIDC-IDRI-0050", "LIDC-IDRI-0893", "LIDC-IDRI-1002"])
+    parser.add_argument("--patients_list", default=["LIDC-IDRI-0088"])
     parser.set_defaults(quantitative=True)
     args = parser.parse_args()
 
@@ -394,6 +402,8 @@ if __name__ == "__main__":
     paths_dict = dict(json.load(open("paths_dict.json")))[args.platform]
     MODELS_PATH = pathlib.Path(paths_dict["MODELS_PATH"])
     DATASET_PATH = pathlib.Path(paths_dict["DATASET_PATH"])
+
+    patients_list = args.patients_list
 
     if args.pipeline_evaluation:
         evaluate_pipeline(
@@ -410,5 +420,5 @@ if __name__ == "__main__":
         evaluate_metadata_file(
             metadata_file_path,
             args.quantitative,
-            MODELS_PATH / pipeline / experiment_folder_name,
+            MODELS_PATH,
         )

@@ -96,7 +96,7 @@ echo "Current directory: `pwd`"
 
 if [ "$SLURM_JOB_NODELIST" ]; then
         #! Create a machine file:
-        export NODEFILE=`generate_pbs_nodefile`
+        if [ "$SLURM_JOB_NODELIST" ]; then
         cat $NODEFILE | uniq > machine.file.$JOBID
         echo -e "\nNodes allocated:\n================"
         echo `cat machine.file.$JOBID | sed -e 's/\..*$//g'`

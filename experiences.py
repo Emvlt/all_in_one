@@ -137,10 +137,10 @@ if __name__ == "__main__":
 
     training_dataloader = DataLoader(
         training_lidc_idri_dataset,
-        training_dict["batch_size"],
+        data_feeding_dict["batch_size"],
         shuffle=True,
         drop_last=True,
-        num_workers=training_dict["num_workers"],
+        num_workers=data_feeding_dict["num_workers"],
     )
 
     image_writer = PyPlotImageWriter(
