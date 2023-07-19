@@ -274,7 +274,7 @@ def evaluate_metadata_file(
     data_feeding_dict = metadata_dict["data_feeding_dict"]
 
     ## Sanity checks
-    check_metadata(metadata_dict, verbose=False)
+    check_metadata(metadata_dict, metadata_file_path, verbose=False)
 
     ## Get inference function
     inference_function = get_inference_function(

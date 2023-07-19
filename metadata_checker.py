@@ -1,4 +1,5 @@
 from typing import Dict
+import pathlib
 
 def check_boolean(variable_name:str, variable_value):
     assert type(variable_value) == bool, f'{variable_name} must be a boolean'
@@ -93,8 +94,6 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
 
             assert "reconstruction_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
             assert "sinogram_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
-
-            assert 'save_path' in reconstruction_dict.keys(), 'specify save path for reconstruction network'
 
         else:
             assert 'load_path' in reconstruction_dict.keys(), 'specify load path for reconstruction network'
@@ -203,7 +202,17 @@ def check_data_feeding_consistency(data_feeding_dict:Dict):
 
     assert 'training_proportion' in data_feeding_dict.keys(), 'Provide training_proportion argument to dict'
 
-def check_metadata(metadata_dict:Dict, verbose = True):
+def check_file_naming_consistency(scan_parameter_dict:Dict, file_path:pathlib.Path):
+    experiment_folder_name = file_path.parent.stem
+    folder_name_to_n_measurements ={
+        '6_percent_measurements':64,
+        '25_percent_measurements':256,
+        '100_percent_measurements':1024
+    }
+    assert folder_name_to_n_measurements[experiment_folder_name] == scan_parameter_dict['angle_partition_dict']['shape']
+
+
+def check_metadata(metadata_dict:Dict, file_path:pathlib.Path, verbose = True):
     if verbose:
         print('Checking metadata type and parameters consistency...')
 
@@ -215,8 +224,14 @@ def check_metadata(metadata_dict:Dict, verbose = True):
     for architecture_name in metadata_dict['architecture_dict'].keys():
         check_architecture_consistency(architecture_name, metadata_dict, verbose)
 
+    if 'scan_parameter_dict' in metadata_dict.keys():
+        scan_parameter_dict = metadata_dict['scan_parameter_dict']
+        check_scan_parameter_dict(scan_parameter_dict)
+        check_file_naming_consistency(scan_parameter_dict, file_path)
+
     if verbose:
         print("Metadata sanity checks passed \u2713 ")
+
 
 
 

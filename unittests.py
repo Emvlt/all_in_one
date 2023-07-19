@@ -12,7 +12,7 @@ def recursively_check_metadata(current_path: pathlib.Path):
             with open(child_path, "rb") as f:  # will close() when we leave this block
                 metadata_dict = json.load(f)
             print(f"Checking {child_path}")
-            check_metadata(metadata_dict)
+            check_metadata(metadata_dict, child_path)
 
 class TestMetadata(unittest.TestCase):
     def test_metadata_files_up_to_date(self):

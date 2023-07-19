@@ -96,7 +96,7 @@ if __name__ == "__main__":
     architecture_dict = metadata_dict["architecture_dict"]
 
     ## Sanity checks
-    check_metadata(metadata_dict)
+    check_metadata(metadata_dict, file_path=metadata_path)
 
     ## Instanciate backend
     odl_backend = ODLBackend()
@@ -154,7 +154,8 @@ if __name__ == "__main__":
     hparams = unpack_hparams(metadata_dict)
     run_writer.add_hparams(hparams, metric_dict = {})
     models_path = pathlib.Path(MODELS_PATH)
-
+    save_file_path = models_path / f'{pipeline}/{experiment_folder_name}/{run_name}.pth'
+    save_file_path.parent.mkdir(parents=True, exist_ok=True)
     t0 = datetime.now()
 
     if pipeline == "reconstruction":
@@ -165,7 +166,8 @@ if __name__ == "__main__":
             train_dataloader=training_dataloader,
             image_writer=image_writer,
             run_writer=run_writer,
-            save_folder_path=models_path,
+            load_folder_path = models_path,
+            save_file_path=save_file_path,
             verbose=VERBOSE_DICT[args.platform]
         )
     elif pipeline == "segmentation":
@@ -176,7 +178,8 @@ if __name__ == "__main__":
             train_dataloader=training_dataloader,
             image_writer=image_writer,
             run_writer=run_writer,
-            save_folder_path=models_path,
+            load_folder_path = models_path,
+            save_file_path=save_file_path,
         )
 
     else:

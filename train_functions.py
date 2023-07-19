@@ -66,7 +66,8 @@ def train_reconstruction_network(
     train_dataloader: DataLoader,
     image_writer: PyPlotImageWriter,
     run_writer: SummaryWriter,
-    save_folder_path: pathlib.Path,
+    load_folder_path:pathlib.Path,
+    save_file_path: pathlib.Path,
     verbose=True,
 ):
 
@@ -75,7 +76,7 @@ def train_reconstruction_network(
     reconstruction_device = torch.device(reconstruction_dict["device_name"])
 
     reconstruction_net = unpack_architecture_dicts(architecture_dict, odl_backend)['reconstruction']
-    reconstruction_net = load_network(save_folder_path, reconstruction_net, reconstruction_dict["load_path"])
+    reconstruction_net = load_network(load_folder_path, reconstruction_net, reconstruction_dict["load_path"])
 
     print(f'Number of network parameters: { sum(p.numel() for p in reconstruction_net.parameters())}')
 
@@ -92,12 +93,6 @@ def train_reconstruction_network(
 
     sinogram_transforms = Normalise()
     display_transforms = Normalise()
-
-    reconstruction_model_save_path = pathlib.Path(save_folder_path)
-    reconstruction_model_save_path.mkdir(exist_ok=True, parents=True)
-    reconstruction_model_file_save_path = reconstruction_model_save_path.joinpath(
-        reconstruction_dict["save_path"]
-    )
 
     for epoch in range(training_dict["n_epochs"]):
         print(f"Training epoch {epoch} / {training_dict['n_epochs']}...")
@@ -179,7 +174,7 @@ def train_reconstruction_network(
                     "current_image_approximation_target.jpg",
                 )
 
-        torch.save(reconstruction_net.state_dict(), reconstruction_model_file_save_path)
+        torch.save(reconstruction_net.state_dict(), save_file_path)
 
 def train_segmentation_network(
     odl_backend: ODLBackend,
@@ -188,7 +183,8 @@ def train_segmentation_network(
     train_dataloader: DataLoader,
     image_writer: PyPlotImageWriter,
     run_writer: SummaryWriter,
-    save_folder_path: pathlib.Path,
+    load_folder_path:pathlib.Path,
+    save_file_path: pathlib.Path,
     verbose=True,
 ):
 
@@ -196,7 +192,7 @@ def train_segmentation_network(
 
     networks = unpack_architecture_dicts(architecture_dict, odl_backend)
     segmentation_net = networks['segmentation']
-    segmentation_net = load_network(save_folder_path, segmentation_net, architecture_dict["segmentation"]["load_path"])
+    segmentation_net = load_network(load_folder_path, segmentation_net, architecture_dict["segmentation"]["load_path"])
 
     segmentation_loss = loss_name_to_loss_function(training_dict["segmentation_loss"])
 
@@ -212,7 +208,7 @@ def train_segmentation_network(
         reconstruction_net = networks['reconstruction']
         try:
             reconstruction_net = load_network(
-                save_folder_path, reconstruction_net, reconstruction_dict["load_path"]
+                load_folder_path, reconstruction_net, reconstruction_dict["load_path"]
             )
         except KeyError:
             print("No save_path found, loading default model")
@@ -220,12 +216,6 @@ def train_segmentation_network(
         reconstruction_net.eval()
         ## Define sinogram transform
         sinogram_transforms = Normalise()
-
-    segmentation_model_save_path = pathlib.Path(save_folder_path)
-    segmentation_model_file_save_path = segmentation_model_save_path.joinpath(
-        architecture_dict["segmentation"]["save_path"]
-    )
-    segmentation_model_file_save_path.parent.mkdir(exist_ok=True, parents=True)
 
     display_transform = Normalise()
 
@@ -283,4 +273,4 @@ def train_segmentation_network(
                     "input_segmentation_tgt.jpg",
                 )
 
-        torch.save(segmentation_net.state_dict(), segmentation_model_file_save_path)
+        torch.save(segmentation_net.state_dict(), save_file_path)
