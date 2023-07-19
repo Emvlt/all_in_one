@@ -38,8 +38,8 @@
             "fourier_filtering_dict":{
                 "is_filter":false
             },
-            "load_path":"reconstruction/100_percent_measurements/1d_lpd_unet_1_iteration.pth",
-            "save_path":"reconstruction/100_percent_measurements/1d_lpd_unet_1_iteration.pth",
+            "load_path":"reconstruction/100_percent_measurements/1d_lpd_unet_5_iteration.pth",
+            "save_path":"reconstruction/100_percent_measurements/1d_lpd_unet_5_iteration.pth",
             "device_name":"cuda:0"
         }
     },
