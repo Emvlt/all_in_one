@@ -36,6 +36,7 @@ if [ "$SLURM_JOB_NODELIST" ]; then
         cat $NODEFILE | uniq > machine.file.$JOBID
         echo -e "\nNodes allocated:\n================"
         echo `cat machine.file.$JOBID | sed -e 's/\..*$//g'`
+fi
 echo -e "\nnumtasks=$numtasks, numnodes=$numnodes, mpi_tasks_per_node=$mpi_tasks_per_node (OMP_NUM_THREADS=$OMP_NUM_THREADS)"
 echo -e "\nExecuting command:\n==================\n$CMD\n"
 eval $CMD

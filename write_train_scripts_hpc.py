@@ -2,6 +2,7 @@ import argparse
 import pathlib
 import csv
 from typing import Dict
+import subprocess
 
 from utils import load_json
 
@@ -87,12 +88,15 @@ def write_train_script(metadata_path:pathlib.Path):
         csv_writer.writerow(['        cat $NODEFILE | uniq > machine.file.$JOBID'])
         csv_writer.writerow(['        echo -e "\\nNodes allocated:\\n================"'])
         csv_writer.writerow([r"        echo `cat machine.file.$JOBID | sed -e 's/\..*$//g'`"])
+        csv_writer.writerow(['fi'])
 
         csv_writer.writerow(['echo -e "\\nnumtasks=$numtasks, numnodes=$numnodes, mpi_tasks_per_node=$mpi_tasks_per_node (OMP_NUM_THREADS=$OMP_NUM_THREADS)"'])
 
         csv_writer.writerow(['echo -e "\\nExecuting command:\\n==================\\n$CMD\\n"'])
 
         csv_writer.writerow(['eval $CMD'])
+
+    subprocess.run(["dos2unix", f"{train_script_path}"])
 
 def recursively_write_train_script(metadata_folder_path: pathlib.Path):
     for child_path in metadata_folder_path.glob("*"):
