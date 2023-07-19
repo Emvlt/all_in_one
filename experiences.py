@@ -25,6 +25,7 @@ def unpack_hparams(metadata_dict:Dict) -> Dict:
         "training_proportion":data_feeding_dict["training_proportion"],
         "is_subset":data_feeding_dict["is_subset"],
         "batch_size":data_feeding_dict["batch_size"],
+        "num_workers":data_feeding_dict["num_workers"],
         ### Training dict unpacking
         "learning_rate":training_dict["learning_rate"],
         "n_epochs":training_dict["n_epochs"],
