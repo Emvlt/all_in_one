@@ -29,7 +29,6 @@ def unpack_hparams(metadata_dict:Dict) -> Dict:
         ### Training dict unpacking
         "learning_rate":training_dict["learning_rate"],
         "n_epochs":training_dict["n_epochs"],
-        "num_workers":training_dict["num_workers"],
         "dose":training_dict["dose"],
         "dual_loss_weighting":training_dict["dual_loss_weighting"],
         "reconstruction_loss":training_dict["reconstruction_loss"],
