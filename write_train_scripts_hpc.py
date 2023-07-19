@@ -10,7 +10,9 @@ DEFAULT_WALLCLOCK_TIME = '02:00:00'
 
 WALLCLOCK_TIME_DICT = {
     'reconstruction/100_percent_measurements/lpd_unet_1_iteration':'12:00:00',
-    'reconstruction/100_percent_measurements/1d_lpd_unet_1_iteration':'12:00:00'
+    'reconstruction/100_percent_measurements/lpd_unet_5_iteration':'12:00:00',
+    'reconstruction/100_percent_measurements/1d_lpd_unet_1_iteration':'12:00:00',
+    'reconstruction/100_percent_measurements/1d_lpd_unet_5_iteration':'12:00:00'
 }
 
 def compute_n_gpus(metadata_dict):
@@ -46,7 +48,15 @@ def write_train_script(metadata_path:pathlib.Path):
         if f'{pipeline}/{experiment_folder_name}/{run_name}' in WALLCLOCK_TIME_DICT:
             wallclock_time = WALLCLOCK_TIME_DICT[f'{pipeline}/{experiment_folder_name}/{run_name}']
         else:
-            wallclock_time = DEFAULT_WALLCLOCK_TIME
+            print(f'No wallclock time allocated to {pipeline}/{experiment_folder_name}/{run_name}, proceeding with default time {DEFAULT_WALLCLOCK_TIME}?')
+            answer = input(f'Press n to abort, y to proceed')
+            if answer == 'n':
+                return
+            elif answer == 'y':
+                wallclock_time = DEFAULT_WALLCLOCK_TIME
+            else:
+                print('Wrong key pressed, aborting...')
+                return
         csv_writer.writerow([f'#SBATCH --time={wallclock_time}'])
         csv_writer.writerow([f'#SBATCH --mail-type=NONE'])
         csv_writer.writerow([f'#SBATCH --no-requeue'])
