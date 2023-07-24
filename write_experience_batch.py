@@ -29,6 +29,7 @@ metadata_template = {
         "train":True,
         "training_proportion":0.8,
         "is_subset":False,
+        "shuffle":True,
         "batch_size":8,
         "num_workers":2
     },
@@ -104,6 +105,7 @@ if __name__=='__main__':
     for folder_name in PIPELINE_FOLDERS[args.pipeline]:
         print(f'Processing folder {folder_name}')
         folder_save_path = pathlib.Path(f'metadata_folder/{args.pipeline}/{folder_name}')
+        folder_save_path.mkdir(parents=True, exist_ok=True)
         metadata_file = copy.deepcopy(metadata_template)
         ## Modify n measurements
         metadata_file["scan_parameter_dict"]["angle_partition_dict"]["shape"] = FOLDER_NAME_TO_MEASUREMENTS[folder_name]

@@ -4,6 +4,7 @@
         "train": true,
         "training_proportion": 0.8,
         "is_subset": false,
+        "shuffle": true,
         "batch_size": 8,
         "num_workers": 2
     },
