@@ -1,0 +1,74 @@
+{
+    "data_feeding_dict": {
+        "dataset_name": "LIDC-IDRI",
+        "train": true,
+        "training_proportion": 0.8,
+        "is_subset": false,
+        "batch_size": 8,
+        "num_workers": 2
+    },
+    "training_dict": {
+        "learning_rate": 0.0001,
+        "n_epochs": 1,
+        "dose": 1,
+        "dual_loss_weighting": 0.5,
+        "reconstruction_loss": "MSE",
+        "sinogram_loss": "L1"
+    },
+    "architecture_dict": {
+        "reconstruction": {
+            "name": "lpd",
+            "train": true,
+            "primal_dict": {
+                "dimension": 2,
+                "name": "Unet",
+                "n_layers": 1,
+                "n_filters": 8
+            },
+            "dual_dict": {
+                "dimension": 1,
+                "name": "Unet",
+                "n_layers": 1,
+                "n_filters": 8
+            },
+            "n_iterations": 1,
+            "fourier_filtering_dict": {
+                "is_filter": false
+            },
+            "load_path": "",
+            "device_name": "cuda:0"
+        }
+    },
+    "scan_parameter_dict": {
+        "space_dict": {
+            "min_pt": [
+                -192,
+                -192
+            ],
+            "max_pt": [
+                192,
+                192
+            ],
+            "shape": [
+                512,
+                512
+            ],
+            "dtype": "float32"
+        },
+        "angle_partition_dict": {
+            "min_pt": 0,
+            "max_pt": 6.28318530718,
+            "shape": 64
+        },
+        "detector_partition_dict": {
+            "min_pt": -473,
+            "max_pt": 473,
+            "shape": 736
+        },
+        "geometry_dict": {
+            "src_radius": 787,
+            "det_radius": 298,
+            "beam_geometry": "fan_beam"
+        }
+    }
+}

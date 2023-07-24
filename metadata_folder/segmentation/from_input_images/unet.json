@@ -1,0 +1,40 @@
+{
+    "data_feeding_dict":{
+        "dataset_name":"LIDC-IDRI",
+        "train":true,
+        "training_proportion":0.8,
+        "is_subset":false,
+        "batch_size":8,
+        "num_workers":2,
+        "reconstructed":false,
+        "shuffle":false
+    },
+
+    "training_dict":{
+        "learning_rate":1e-5,
+        "n_epochs":100,
+        "segmentation_loss":"BCE"
+
+    },
+
+    "architecture_dict":{
+        "segmentation":{
+            "name":"Unet",
+            "train":true,
+            "folded":false,
+            "unet_dict":{
+                "dimension":2,
+                "name":"Unet",
+                "input_channels":1,
+                "output_channels":1,
+                "n_filters":8,
+                "activation_function":"sigmoid"
+            },
+            "output_tensor":"mask",
+            "load_path":"segmentation/from_input_images/unet.pth",
+            "device_name":"cuda:0"
+        }
+    }
+
+
+}

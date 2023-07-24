@@ -20,7 +20,7 @@ from metadata_checker import check_metadata
 from transforms import Normalise, ToFloat  # type:ignore
 
 
-def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBackend,experiment_models_folder_path: pathlib.Path) -> Callable:
+def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBackend, experiment_models_folder_path: pathlib.Path, model_relative_path:pathlib.Path) -> Callable:
     architecture_dict = metadata_dict["architecture_dict"]
     if pipeline == "reconstruction":
         architecture_name = architecture_dict["reconstruction"]["name"]
@@ -36,7 +36,7 @@ def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBa
                 load_network(
                     experiment_models_folder_path,
                     lpd_network,
-                    architecture_dict["reconstruction"]["save_path"],
+                    model_relative_path,
                     indent_level=3,
                 )
             except KeyError:
@@ -64,7 +64,7 @@ def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBa
                 load_network(
                     experiment_models_folder_path,
                     fourier_filtering_module,
-                    architecture_dict["reconstruction"]["save_path"],
+                    model_relative_path,
                     indent_level=3,
                 )
             except KeyError:
@@ -263,6 +263,8 @@ def evaluate_metadata_file(
         f"Running {pipeline} pipeline for {experiment_folder_name} experiment folder: experience {run_name} running on {args.platform}"
     )
 
+    model_relative_path = pathlib.Path(f'{pipeline}/{experiment_folder_name}/{run_name}.pth')
+
     ## Unpacking dicts
     odl_backend = ODLBackend()
 
@@ -278,7 +280,7 @@ def evaluate_metadata_file(
 
     ## Get inference function
     inference_function = get_inference_function(
-        metadata_dict, pipeline, odl_backend, experiment_models_folder_path
+        metadata_dict, pipeline, odl_backend, experiment_models_folder_path, model_relative_path
     )
 
     ## Transforms
@@ -346,7 +348,7 @@ def evaluate_metadata_file(
                 run_name,
                 inference_function,
                 lidc_idri_dataset,
-                "LIDC-IDRI-0222",
+                patient_name,
                 50,
                 image_writer,
                 transforms,
@@ -382,7 +384,7 @@ def evaluate_pipeline(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--platform", required=True)
+    parser.add_argument("--platform", required=False, default='holly-b')
 
     parser.add_argument("--pipeline_evaluation", action="store_true")
     parser.add_argument("--pipeline", required=False)
@@ -393,7 +395,7 @@ if __name__ == "__main__":
     parser.add_argument("--quantitative", action="store_true")
     parser.add_argument("--qualitative", dest="quantitative", action="store_false")
 
-    parser.add_argument("--patients_list", default=["LIDC-IDRI-0088"])
+    parser.add_argument("--patients_list", default=["LIDC-IDRI-0772", "LIDC-IDRI-0893", "LIDC-IDRI-0900", "LIDC-IDRI-1002"])
     parser.set_defaults(quantitative=True)
     args = parser.parse_args()
 

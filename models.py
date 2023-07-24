@@ -57,8 +57,8 @@ class FourierTransformInceptionLayer(nn.Module):
     def __init__(
         self,
         dimension: int,
-        n_channels_input: int,
-        n_channels_output: int,
+        input_channels: int,
+        output_channels: int,
         n_filters: int,
         dtype: torch.dtype,
         device: torch.device,
@@ -66,20 +66,20 @@ class FourierTransformInceptionLayer(nn.Module):
         super(FourierTransformInceptionLayer, self).__init__()
         if dimension == 1:
             self.conv1 = nn.Conv1d(
-                n_channels_input, n_filters, 1, padding=0, dtype=dtype, device=device
+                input_channels, n_filters, 1, padding=0, dtype=dtype, device=device
             )
             self.conv3 = nn.Conv1d(
-                n_channels_input, n_filters, 3, padding=1, dtype=dtype, device=device
+                input_channels, n_filters, 3, padding=1, dtype=dtype, device=device
             )
             self.conv5 = nn.Conv1d(
-                n_channels_input, n_filters, 5, padding=2, dtype=dtype, device=device
+                input_channels, n_filters, 5, padding=2, dtype=dtype, device=device
             )
             self.conv7 = nn.Conv1d(
-                n_channels_input, n_filters, 7, padding=3, dtype=dtype, device=device
+                input_channels, n_filters, 7, padding=3, dtype=dtype, device=device
             )
             self.collection_filter = nn.Conv1d(
                 4 * n_filters,
-                n_channels_output,
+                output_channels,
                 7,
                 padding=3,
                 dtype=dtype,
@@ -88,7 +88,7 @@ class FourierTransformInceptionLayer(nn.Module):
 
         elif dimension == 2:
             self.conv1 = nn.Conv2d(
-                n_channels_input,
+                input_channels,
                 n_filters,
                 (1, 1),
                 padding=(0, 0),
@@ -96,7 +96,7 @@ class FourierTransformInceptionLayer(nn.Module):
                 device=device,
             )
             self.conv3 = nn.Conv2d(
-                n_channels_input,
+                input_channels,
                 n_filters,
                 (1, 3),
                 padding=(0, 1),
@@ -104,7 +104,7 @@ class FourierTransformInceptionLayer(nn.Module):
                 device=device,
             )
             self.conv5 = nn.Conv2d(
-                n_channels_input,
+                input_channels,
                 n_filters,
                 (1, 5),
                 padding=(0, 2),
@@ -112,7 +112,7 @@ class FourierTransformInceptionLayer(nn.Module):
                 device=device,
             )
             self.conv7 = nn.Conv2d(
-                n_channels_input,
+                input_channels,
                 n_filters,
                 (1, 7),
                 padding=(0, 3),
@@ -121,7 +121,7 @@ class FourierTransformInceptionLayer(nn.Module):
             )
             self.collection_filter = nn.Conv2d(
                 4 * n_filters,
-                n_channels_output,
+                output_channels,
                 7,
                 padding=3,
                 dtype=dtype,
@@ -190,38 +190,44 @@ class InceptionLayer(nn.Module):
     def __init__(
         self,
         dimension: int,
-        n_channels_input: int,
-        n_channels_output: int,
+        input_channels: int,
+        output_channels: int,
         n_filters: int,
         dtype=torch.float,
     ) -> None:
         super(InceptionLayer, self).__init__()
         if dimension == 1:
+            self.conv1 = nn.Conv1d(
+                input_channels, n_filters, 1, padding=0, dtype=dtype
+            )
             self.conv3 = nn.Conv1d(
-                n_channels_input, n_filters, 3, padding=1, dtype=dtype
+                input_channels, n_filters, 3, padding=1, dtype=dtype
             )
             self.conv5 = nn.Conv1d(
-                n_channels_input, n_filters, 5, padding=2, dtype=dtype
+                input_channels, n_filters, 5, padding=2, dtype=dtype
             )
             self.conv7 = nn.Conv1d(
-                n_channels_input, n_filters, 7, padding=3, dtype=dtype
+                input_channels, n_filters, 7, padding=3, dtype=dtype
             )
             self.collection_filter = nn.Conv1d(
-                3 * n_filters, n_channels_output, 7, padding=3, dtype=dtype
+                4 * n_filters, output_channels, 7, padding=3, dtype=dtype
             )
 
         elif dimension == 2:
+            self.conv1 = nn.Conv2d(
+                input_channels, n_filters, 1, padding=0, dtype=dtype
+            )
             self.conv3 = nn.Conv2d(
-                n_channels_input, n_filters, 3, padding=1, dtype=dtype
+                input_channels, n_filters, 3, padding=1, dtype=dtype
             )
             self.conv5 = nn.Conv2d(
-                n_channels_input, n_filters, 5, padding=2, dtype=dtype
+                input_channels, n_filters, 5, padding=2, dtype=dtype
             )
             self.conv7 = nn.Conv2d(
-                n_channels_input, n_filters, 7, padding=3, dtype=dtype
+                input_channels, n_filters, 7, padding=3, dtype=dtype
             )
             self.collection_filter = nn.Conv2d(
-                3 * n_filters, n_channels_output, 7, padding=3, dtype=dtype
+                4 * n_filters, output_channels, 7, padding=3, dtype=dtype
             )
 
         self.leaky_relu = nn.LeakyReLU(negative_slope=0.1)
@@ -235,6 +241,7 @@ class InceptionLayer(nn.Module):
         return self.filtering(
             torch.cat(
                 [
+                    self.conv1(input_tensor),
                     self.conv3(input_tensor),
                     self.conv5(input_tensor),
                     self.conv7(input_tensor),
@@ -251,25 +258,25 @@ class CnnBlock(nn.Module):
     ) -> None:
         super(CnnBlock, self).__init__()
         dimension = network_dict['dimension']
-        n_channels_input  = network_dict['n_channels_input']
-        n_channels_output = network_dict['n_channels_output']
+        input_channels  = network_dict['input_channels']
+        output_channels = network_dict['output_channels']
         n_filters = network_dict['n_filters']
 
         if dimension == 1:
             self.block = nn.Sequential(
-                nn.Conv1d(n_channels_input, n_filters, 3, padding=1),
+                nn.Conv1d(input_channels, n_filters, 3, padding=1),
                 nn.PReLU(num_parameters=n_filters, init=0.0),
                 nn.Conv1d(n_filters, n_filters, 3, padding=1),
                 nn.PReLU(num_parameters=n_filters, init=0.0),
-                nn.Conv1d(n_filters, n_channels_output, 3, padding=1),
+                nn.Conv1d(n_filters, output_channels, 3, padding=1),
             )
         elif dimension == 2:
             self.block = nn.Sequential(
-                nn.Conv2d(n_channels_input, n_filters, 3, padding=1),
+                nn.Conv2d(input_channels, n_filters, 3, padding=1),
                 nn.PReLU(num_parameters=n_filters, init=0.0),
                 nn.Conv2d(n_filters, n_filters, 3, padding=1),
                 nn.PReLU(num_parameters=n_filters, init=0.0),
-                nn.Conv2d(n_filters, n_channels_output, 3, padding=1),
+                nn.Conv2d(n_filters, output_channels, 3, padding=1),
             )
 
         weights_init(self.block)
@@ -282,27 +289,27 @@ class DownModule(nn.Module):
     def __init__(
         self,
         dimension: int,
-        n_channels_input: int,
-        n_channels_output: int,
+        input_channels: int,
+        output_channels: int,
         n_filters: int,
     ):
         super().__init__()
         if dimension == 1:
             self.down = nn.Sequential(
-                nn.Conv1d(n_channels_input, n_channels_output, 4, stride=2, padding=1),
+                nn.Conv1d(input_channels, output_channels, 4, stride=2, padding=1),
                 nn.LeakyReLU(negative_slope=0.1),
-                nn.Conv1d(n_channels_output, n_channels_output, 3, stride=1, padding=1),
+                nn.Conv1d(output_channels, output_channels, 3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=0.1),
-                nn.Conv1d(n_channels_output, n_channels_output, 3, stride=1, padding=1),
+                nn.Conv1d(output_channels, output_channels, 3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=0.1),
             )
         elif dimension == 2:
             self.down = nn.Sequential(
-                nn.Conv2d(n_channels_input, n_channels_output, 4, stride=2, padding=1),
+                nn.Conv2d(input_channels, output_channels, 4, stride=2, padding=1),
                 nn.LeakyReLU(negative_slope=0.1),
-                nn.Conv2d(n_channels_output, n_channels_output, 3, stride=1, padding=1),
+                nn.Conv2d(output_channels, output_channels, 3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=0.1),
-                nn.Conv2d(n_channels_output, n_channels_output, 3, stride=1, padding=1),
+                nn.Conv2d(output_channels, output_channels, 3, stride=1, padding=1),
                 nn.LeakyReLU(negative_slope=0.1),
             )
         weights_init(self.down)
@@ -315,25 +322,25 @@ class UpModule(nn.Module):
     def __init__(
         self,
         dimension: int,
-        n_channels_input: int,
-        n_channels_output: int,
+        input_channels: int,
+        output_channels: int,
         n_filters: int,
     ):
         super().__init__()
         if dimension == 1:
             self.up = nn.ConvTranspose1d(
-                n_channels_input, n_channels_input, 4, stride=2, padding=1
+                input_channels, input_channels, 4, stride=2, padding=1
             )
-            self.conv1 = nn.Conv1d(n_channels_input, n_channels_output, 5, 1, 2)
-            self.conv2 = nn.Conv1d(2 * n_channels_output, n_channels_output, 5, 1, 2)
+            self.conv1 = nn.Conv1d(input_channels, output_channels, 5, 1, 2)
+            self.conv2 = nn.Conv1d(2 * output_channels, output_channels, 5, 1, 2)
         elif dimension == 2:
             self.up = nn.ConvTranspose2d(
-                n_channels_input, n_channels_input, 4, stride=2, padding=1
+                input_channels, input_channels, 4, stride=2, padding=1
             )
-            self.conv1 = nn.Conv2d(n_channels_input, n_channels_output, 5, 1, 2)
-            self.conv2 = nn.Conv2d(2 * n_channels_output, n_channels_output, 5, 1, 2)
-        """ self.conv1 = InceptionLayer(dimension, n_channels_input,  n_channels_output, n_filters)
-        self.conv2 = InceptionLayer(dimension, 2*n_channels_output,  n_channels_output, n_filters)"""
+            self.conv1 = nn.Conv2d(input_channels, output_channels, 5, 1, 2)
+            self.conv2 = nn.Conv2d(2 * output_channels, output_channels, 5, 1, 2)
+        """ self.conv1 = InceptionLayer(dimension, input_channels,  output_channels, n_filters)
+        self.conv2 = InceptionLayer(dimension, 2*output_channels,  output_channels, n_filters)"""
         self.l_relu = nn.LeakyReLU(negative_slope=0.1)
 
     def forward(
@@ -351,12 +358,20 @@ class Unet(nn.Module):
     ):
         super(Unet, self).__init__()
         dimension = network_dict['dimension']
-        n_channels_input  = network_dict['n_channels_input']
-        n_channels_output = network_dict['n_channels_output']
+        input_channels  = network_dict['input_channels']
+        output_channels = network_dict['output_channels']
         n_filters = network_dict['n_filters']
-        regression=True,
+        if 'activation_function' in network_dict.keys():
+            if network_dict['activation_function'] == 'sigmoid':
+                self.last_layer = nn.Sigmoid()
+            elif network_dict['activation_function'] == 'l_relu':
+                self.last_layer = nn.LeakyReLU(negative_slope=0.1)
+            else:
+                raise NotImplementedError('Only activation function implemented for last layer are sigmoid and l_relu')
+        else:
+            self.last_layer = nn.LeakyReLU(negative_slope=0.1)
         # Initialize neural network blocks.
-        self.conv1 = InceptionLayer(dimension, n_channels_input, n_filters, n_filters)
+        self.conv1 = InceptionLayer(dimension, input_channels, n_filters, n_filters)
         self.conv2 = InceptionLayer(dimension, n_filters, n_filters, n_filters)
         self.down1 = DownModule(dimension, n_filters, 2 * n_filters, n_filters)
         self.down2 = DownModule(dimension, 2 * n_filters, 4 * n_filters, n_filters)
@@ -369,16 +384,12 @@ class Unet(nn.Module):
         self.up4 = UpModule(dimension, 4 * n_filters, 2 * n_filters, n_filters)
         self.up5 = UpModule(dimension, 2 * n_filters, n_filters, n_filters)
         self.conv3 = InceptionLayer(
-            dimension, n_filters + n_channels_input, 2 * n_channels_output, n_filters
+            dimension, n_filters + input_channels, 2 * output_channels, n_filters
         )
         self.conv4 = InceptionLayer(
-            dimension, 2 * n_channels_output, n_channels_output, n_filters
+            dimension, 2 * output_channels, output_channels, n_filters
         )
         self.l_relu = nn.LeakyReLU(negative_slope=0.1)
-        if regression:
-            self.last_layer = self.l_relu
-        else:
-            self.last_layer = nn.Sigmoid()
 
     def forward(self, input_tensor: torch.Tensor):
         s_0 = self.l_relu(self.conv1(input_tensor))
@@ -484,8 +495,8 @@ class Iteration(nn.Module):
 
         primal_block_dict = {
                 'dimension' : primal_dict['dimension'],
-                'n_channels_input' : primal_dict['n_layers'] + 1,
-                'n_channels_output' : primal_dict['n_layers'],
+                'input_channels' : primal_dict['n_layers'] + 1,
+                'output_channels' : primal_dict['n_layers'],
                 'n_filters' : primal_dict['n_filters']
             }
         if primal_dict['name'] == 'Unet':
@@ -500,13 +511,13 @@ class Iteration(nn.Module):
         self.dual_dimension = dual_dict['dimension']
         dual_block_dict = {
                 'dimension' : dual_dict['dimension'],
-                'n_channels_input' : (dual_dict['n_layers'] + 2),
-                'n_channels_output' : dual_dict['n_layers'],
+                'input_channels' : (dual_dict['n_layers'] + 2),
+                'output_channels' : dual_dict['n_layers'],
                 'n_filters' : dual_dict['n_filters']
             }
         if self.dual_dimension == 1:
-            dual_block_dict['n_channels_input'] *= self.n_measurements
-            dual_block_dict['n_channels_output'] *= self.n_measurements
+            dual_block_dict['input_channels'] *= self.n_measurements
+            dual_block_dict['output_channels'] *= self.n_measurements
 
         if dual_dict['name'] == 'Unet':
             self.dual_block = Unet(dual_block_dict)

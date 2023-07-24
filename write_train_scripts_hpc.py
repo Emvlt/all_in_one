@@ -6,7 +6,7 @@ import subprocess
 
 from utils import load_json
 
-DEFAULT_WALLCLOCK_TIME = '06:00:00'
+DEFAULT_WALLCLOCK_TIME = '08:00:00'
 
 WALLCLOCK_TIME_DICT = {
 
@@ -29,6 +29,7 @@ def write_train_script(metadata_path:pathlib.Path):
     run_name = metadata_path.stem
     print('\t' + f'Pipeline: {pipeline}; Experiment folder name: {experiment_folder_name}; run name: {run_name}')
     train_script_path = pathlib.Path(f'train_scripts_hpc/{pipeline}/{experiment_folder_name}/{run_name}.sh')
+    train_script_path.parent.mkdir(exist_ok=True, parents=True)
     if train_script_path.is_file():
         print(f'{train_script_path} already exists, passing')
         return

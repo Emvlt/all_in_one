@@ -47,7 +47,7 @@ def unpack_architecture_dicts(architecture_dict:Dict, odl_backend=None) -> Dict[
         elif architecture_name =='segmentation':
 
             if network_name =='Unet':
-                network = Unet(network_dict).to(current_device)
+                network = Unet(network_dict['unet_dict']).to(current_device)
 
             else:
                 raise NotImplementedError(f"{network_name} not implemented")
@@ -180,6 +180,7 @@ def train_segmentation_network(
     odl_backend: ODLBackend,
     architecture_dict: Dict,
     training_dict: Dict,
+    data_feeding_dict:Dict,
     train_dataloader: DataLoader,
     image_writer: PyPlotImageWriter,
     run_writer: SummaryWriter,
@@ -187,12 +188,12 @@ def train_segmentation_network(
     save_file_path: pathlib.Path,
     verbose=True,
 ):
-
-    segmentation_device = torch.device(architecture_dict["segmentation"]["device_name"])
+    segmentation_dict = architecture_dict["segmentation"]
+    segmentation_device = torch.device(segmentation_dict["device_name"])
 
     networks = unpack_architecture_dicts(architecture_dict, odl_backend)
     segmentation_net = networks['segmentation']
-    segmentation_net = load_network(load_folder_path, segmentation_net, architecture_dict["segmentation"]["load_path"])
+    segmentation_net = load_network(load_folder_path, segmentation_net, segmentation_dict["load_path"])
 
     segmentation_loss = loss_name_to_loss_function(training_dict["segmentation_loss"])
 
@@ -202,7 +203,7 @@ def train_segmentation_network(
         betas=(0.9, 0.99),
     )
 
-    if training_dict["reconstructed"]:
+    if data_feeding_dict["reconstructed"]:
         reconstruction_dict = architecture_dict["reconstruction"]
         ## Define reconstruction device
         reconstruction_net = networks['reconstruction']
@@ -217,6 +218,10 @@ def train_segmentation_network(
         ## Define sinogram transform
         sinogram_transforms = Normalise()
 
+    if segmentation_dict['folded']:
+        unfold = torch.nn.Unfold((64,64), stride=64)
+        fold = torch.nn.Fold(torch.Size([512,512]), 64,stride=64)
+
     display_transform = Normalise()
 
     for epoch in range(training_dict["n_epochs"]):
@@ -224,7 +229,7 @@ def train_segmentation_network(
         for index, data in enumerate(train_dataloader):
             reconstruction = data[0].to(segmentation_device)
             mask = data[-1].to(segmentation_device)
-            if training_dict["reconstructed"]:
+            if data_feeding_dict["reconstructed"]:
                 with torch.no_grad():
                     ## Re-sample
                     sinogram = odl_backend.get_sinogram(reconstruction)
@@ -239,19 +244,33 @@ def train_segmentation_network(
                         )
                     else:
                         raise NotImplementedError
+
             optimiser.zero_grad()
-            approximated_segmentation = segmentation_net(
-                reconstruction * mask[:, 1:, :, :]
-            )
-            loss_segmentation = segmentation_loss(
-                approximated_segmentation, mask[:, 1:, :, :]
-            )
+            if segmentation_dict['folded']:
+                reconstruction:torch.Tensor = unfold(reconstruction) #type:ignore
+                reconstruction = reconstruction.transpose(1, 2).view(data_feeding_dict['batch_size'], 64, 64, 64)
+
+            approximated_segmentation:torch.Tensor = segmentation_net(reconstruction)
+
+            if segmentation_dict['folded']:
+                    approximated_segmentation = fold(approximated_segmentation.reshape([data_feeding_dict['batch_size'], 64,4096]).transpose(1,2)) #type:ignore
+
+            if segmentation_dict['output_tensor']   == "reconstruction":
+                loss_segmentation = segmentation_loss(approximated_segmentation, reconstruction)
+            elif segmentation_dict['output_tensor'] == "mask":
+                loss_segmentation = segmentation_loss(approximated_segmentation, mask[:,1:,:,:])
+            elif segmentation_dict['output_tensor'] == "background_mask":
+                loss_segmentation = segmentation_loss(approximated_segmentation, mask)
+            elif segmentation_dict['output_tensor'] == "background_mask_reconstruction":
+                loss_segmentation = segmentation_loss(approximated_segmentation, torch.cat([mask, reconstruction], dim=1))
+            else:
+                print(f'Ouput tensor {training_dict["output_tensor"]} not implemented')
+                raise NotImplementedError
 
             loss_segmentation.backward()
-
             optimiser.step()
 
-            if index % 10 == 0:
+            if index % 50 == 0:
                 if verbose:
                     print(f"\n Metrics at step {index} of epoch {epoch}")
                     print(f"Image BCE Loss : {loss_segmentation.item()}")
@@ -260,7 +279,8 @@ def train_segmentation_network(
                     loss_segmentation.item(),
                     global_step=index + epoch * train_dataloader.__len__(),
                 )
-                # image_writer.write_image_tensor(reconstruction, 'current_reconstruction.jpg')
+                if segmentation_dict['folded']:
+                    reconstruction = fold(reconstruction.reshape([data_feeding_dict['batch_size'], 64,4096]).transpose(1,2)) #type:ignore
                 image_writer.write_image_tensor(
                     torch.cat(
                         (

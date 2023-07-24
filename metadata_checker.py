@@ -136,31 +136,31 @@ def check_segmentation_network_consistency(segmentation_dict:Dict, metadata_dict
     assert "train" in segmentation_dict.keys(), 'Specify training mode channels'
     check_boolean('train', segmentation_dict['train'])
 
-    if segmentation_dict['name']  == 'Unet':
-        if segmentation_dict['train']:
+    if segmentation_dict['train']:
             assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
             check_training_dict(metadata_dict['training_dict'])
-            training_dict = metadata_dict['training_dict']
+            training_dict:Dict = metadata_dict['training_dict']
 
             assert "segmentation_loss" in training_dict.keys(), 'Provide segmentation_loss argument to the training_dict'
 
-            assert 'save_path' in segmentation_dict.keys(), 'specify save path for reconstruction network'
+            data_feeding_dict = metadata_dict['data_feeding_dict']
+            assert "reconstructed" in data_feeding_dict.keys(), 'Specify reconstructed boolean argument'
+            check_boolean('reconstructed', data_feeding_dict['reconstructed'])
 
-            assert "reconstructed" in training_dict.keys(), 'Specify reconstructed boolean argument'
-            check_boolean('reconstructed', training_dict['reconstructed'])
-
-        else:
-            assert 'load_path' in segmentation_dict.keys(), 'specify load path for reconstruction network'
+            if data_feeding_dict['reconstructed']:
+                check_reconstruction_network_consistency(metadata_dict['architecture_dict']['reconstruction'], metadata_dict)
 
 
-        assert 'Unet_input_channels' in segmentation_dict.keys(), 'Specify number of Unet input channels'
-        check_integer('Unet_input_channels', segmentation_dict['Unet_input_channels'])
+    if segmentation_dict['name']  == 'Unet':
+        unet_dict = segmentation_dict['unet_dict']
+        assert 'input_channels' in unet_dict.keys(), 'Specify number of Unet input channels'
+        check_integer('input_channels', unet_dict['input_channels'])
 
-        assert 'Unet_output_channels' in segmentation_dict.keys(), 'Specify number of Unet output channels'
-        check_integer('Unet_output_channels', segmentation_dict['Unet_output_channels'])
+        assert 'output_channels' in unet_dict.keys(), 'Specify number of Unet output channels'
+        check_integer('output_channels', unet_dict['output_channels'])
 
-        assert 'Unet_n_filters' in segmentation_dict.keys(), 'Specify number of Unet filters'
-        check_integer('Unet_n_filters', segmentation_dict['Unet_n_filters'])
+        assert 'n_filters' in unet_dict.keys(), 'Specify number of Unet filters'
+        check_integer('n_filters', unet_dict['n_filters'])
 
     else:
         raise NotImplementedError(f"Segmentation network {segmentation_dict['name']} not implemented.")

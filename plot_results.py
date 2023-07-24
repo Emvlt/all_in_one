@@ -42,13 +42,36 @@ EXPERIMENT_TRACKER = {
         'vanilla_lpd',
         'vanilla_lpd_sinogram_optimisation_L1',
         'vanilla_lpd_sinogram_optimisation_MSE',
-    ]
+    ],
+    "1d_architecture_exploration":[
+        '1d_1it_cnn_cnn',
+        '1d_1it_cnn_unet',
+        '1d_1it_unet_cnn',
+        '1d_1it_unet_unet',
+        '1d_5it_cnn_cnn',
+        '1d_5it_cnn_unet',
+        '1d_5it_unet_cnn',
+        '1d_5it_unet_unet',
+    ],
+    "2d_architecture_exploration":[
+        '2d_1it_cnn_cnn',
+        '2d_1it_cnn_unet',
+        '2d_1it_unet_cnn',
+        '2d_1it_unet_unet',
+        '2d_5it_cnn_cnn',
+        '2d_5it_cnn_unet',
+        '2d_5it_unet_cnn',
+        '2d_5it_unet_unet',
+    ],
+
 }
 
 
-def load_patient_run(path_to_run: pathlib.Path, patient_id: str) -> Dict:
+def load_patient_run(path_to_run: pathlib.Path, patient_id: str) -> List:
     run_result: Dict[str, Dict] = json.load(open(path_to_run, "r"))
-    return run_result[patient_id]
+    patient_run_dict = run_result[patient_id]
+    n_slices = len(patient_run_dict)
+    return [patient_run_dict[str(i)] for i in range(n_slices)]
 
 def assess_setting(patient_name: str,pipeline: str,experiment_folder:str,experiment_tracker: List):
     experiment_save_path = PATH_TO_PLOTS.joinpath(f"{experiment_folder}")
@@ -61,10 +84,9 @@ def assess_setting(patient_name: str,pipeline: str,experiment_folder:str,experim
         path_to_run = RESULTS_PATH.joinpath(
             f"{pipeline}/{experiment_folder}/{experiment_name}.json"
         )
-        patient_run_dict = load_patient_run(path_to_run, patient_name)
+        patient_run = load_patient_run(path_to_run, patient_name)
         ### Format run
-        n_slices = len(patient_run_dict)
-        patient_run = [patient_run_dict[str(i)] for i in range(n_slices)]
+
         ### Plot run
         ax.plot(patient_run, label=f'{experiment_name}_{statistics.mean(patient_run)}')
         print("\t" + f"Run name: {experiment_folder}/{experiment_name}")
@@ -96,7 +118,7 @@ if __name__ == "__main__":
     parser.add_argument("--setting_evaluation", dest="pipeline_evaluation", action="store_false")
     parser.add_argument("--setting", required=False)
 
-    parser.add_argument("--patient_list", default=["LIDC-IDRI-0088"])
+    parser.add_argument("--patient_list", default=["LIDC-IDRI-0772", "LIDC-IDRI-0893", "LIDC-IDRI-0900", "LIDC-IDRI-1002"])
     parser.set_defaults(quantitative=True)
 
 

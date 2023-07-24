@@ -11,58 +11,9 @@ from torch.utils.tensorboard import SummaryWriter  # type:ignore
 from datasets import LIDC_IDRI
 from backends.odl import ODLBackend
 from train_functions import train_reconstruction_network, train_segmentation_network
-from utils import PyPlotImageWriter
+from utils import PyPlotImageWriter, unpack_hparams
 from metadata_checker import check_metadata
 from transforms import Normalise, ToFloat  # type:ignore
-
-def unpack_hparams(metadata_dict:Dict) -> Dict:
-    data_feeding_dict = metadata_dict['data_feeding_dict']
-    training_dict = metadata_dict['training_dict']
-    architecture_dict = metadata_dict['architecture_dict']
-    hparams = {
-        ### Data feeding dict unpacking
-        "dataset_name":data_feeding_dict["dataset_name"],
-        "training_proportion":data_feeding_dict["training_proportion"],
-        "is_subset":data_feeding_dict["is_subset"],
-        "batch_size":data_feeding_dict["batch_size"],
-        "num_workers":data_feeding_dict["num_workers"],
-        ### Training dict unpacking
-        "learning_rate":training_dict["learning_rate"],
-        "n_epochs":training_dict["n_epochs"],
-        "dose":training_dict["dose"],
-        "dual_loss_weighting":training_dict["dual_loss_weighting"],
-        "reconstruction_loss":training_dict["reconstruction_loss"],
-        "sinogram_loss":training_dict["sinogram_loss"],
-    }
-    if training_dict["dual_loss_weighting"] !=0:
-        hparams["sinogram_loss"] = training_dict["sinogram_loss"]
-    for architecture_name, network_dict in architecture_dict.items():
-        hparams[f'{architecture_name}_network'] = network_dict["name"]
-        if network_dict["name"] == 'lpd':
-            for key, value in network_dict['primal_dict'].items():
-                hparams[f"primal_{key}"] = value
-            for key, value in network_dict['dual_dict'].items():
-                hparams[f"dual_{key}"] = value
-            hparams['lpd_n_iterations'] = network_dict['n_iterations']
-            for key, value in network_dict['fourier_filtering_dict'].items():
-                hparams[f"fourier_filtering_{key}"] = value
-        else:
-            raise NotImplementedError
-
-
-    if 'scan_parameter_dict' in metadata_dict.keys():
-        ### Scan dict unpacking
-        hparams["angle_partition_min_pt"]=scan_parameter_dict['angle_partition_dict']['min_pt']
-        hparams["angle_partition_max_pt"]=scan_parameter_dict['angle_partition_dict']['max_pt']
-        hparams["angle_partition_shape"]=scan_parameter_dict['angle_partition_dict']['shape']
-        hparams["detector_partition_min_pt"]=scan_parameter_dict['detector_partition_dict']['min_pt']
-        hparams["detector_partition_max_pt"]=scan_parameter_dict['detector_partition_dict']['max_pt']
-        hparams["detector_partition_shape"]=scan_parameter_dict['detector_partition_dict']['shape']
-        hparams["src_radius"]=scan_parameter_dict['geometry_dict']['src_radius']
-        hparams["det_radius"]=scan_parameter_dict['geometry_dict']['det_radius']
-        hparams["beam_geometry"]=scan_parameter_dict['geometry_dict']['beam_geometry']
-
-    return hparams
 
 VERBOSE_DICT ={
     'holly-b':True,
@@ -72,7 +23,7 @@ VERBOSE_DICT ={
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--metadata_path", required=True)
-    parser.add_argument("--platform", required=True)
+    parser.add_argument("--platform", required=False, default='holly-b')
     args = parser.parse_args()
 
     ## Unpacking paths
@@ -138,7 +89,7 @@ if __name__ == "__main__":
     training_dataloader = DataLoader(
         training_lidc_idri_dataset,
         data_feeding_dict["batch_size"],
-        shuffle=True,
+        shuffle=data_feeding_dict['shuffle'],
         drop_last=True,
         num_workers=data_feeding_dict["num_workers"],
     )
@@ -151,8 +102,8 @@ if __name__ == "__main__":
         log_dir=pathlib.Path(RUNS_PATH) / pipeline / experiment_folder_name / run_name
     )
     ### Format hyperparameters for registration
-    hparams = unpack_hparams(metadata_dict)
-    run_writer.add_hparams(hparams, metric_dict = {})
+    # hparams = unpack_hparams(metadata_dict)
+    #run_writer.add_hparams(hparams, metric_dict = {})
     models_path = pathlib.Path(MODELS_PATH)
     save_file_path = models_path / f'{pipeline}/{experiment_folder_name}/{run_name}.pth'
     save_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +126,7 @@ if __name__ == "__main__":
             odl_backend=odl_backend,
             architecture_dict=architecture_dict,
             training_dict=training_dict,
+            data_feeding_dict=data_feeding_dict,
             train_dataloader=training_dataloader,
             image_writer=image_writer,
             run_writer=run_writer,

@@ -29,7 +29,7 @@ class LIDC_IDRI(Dataset):
         is_subset: bool,
         transform=None,
         subset=[],
-        verbose=False,
+        verbose=True,
         patient_list=[],
         rule='superior',
         subtelty_value=4
@@ -95,6 +95,12 @@ class LIDC_IDRI(Dataset):
             self.patient_id_to_slices_of_interest = dict(
                 (k, self.patient_index_to_segmented_slices[k]) for k in self.patients_with_nodules_of_interest
             )
+            if self.path_to_processed_dataset.joinpath(f"patient_index_to_large_annotations.json").is_file():
+                if verbose:
+                    print(f'{self.path_to_processed_dataset.joinpath(f"patient_index_to_large_annotations.json")} is a file, loading only large annotations')
+                self.patient_id_to_slices_of_interest = load_json(self.path_to_processed_dataset.joinpath(f"patient_index_to_large_annotations.json"))
+                print(f'There are {len(self.patient_id_to_slices_of_interest)} patients')
+                self.patients_masks = load_json(self.path_to_processed_dataset.joinpath("patient_index_to_large_annotations.json"))
 
         ## Partitioning the dataset
         if is_subset == False:
@@ -130,7 +136,6 @@ class LIDC_IDRI(Dataset):
         if verbose:
             print("Preparing patient list, this may take time....")
 
-        ### REFACTOR (yikes)
         if self.training:
             self.slice_index_to_patient_index_list, self.patient_index_to_first_index_dict = self.get_dataset_indices(
                 self.training_patients_list, self.patient_id_to_slices_of_interest
@@ -261,8 +266,9 @@ class LIDC_IDRI(Dataset):
             )
         else:
             slice_name = list(self.patients_masks[patient_index].keys())[
-                slice_index
-            ]
+                        slice_index
+                    ]
+
 
             file_path = self.path_to_processed_dataset.joinpath(
                 f"{patient_index}/slice_{slice_name}.npy"
