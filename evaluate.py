@@ -20,7 +20,7 @@ from metadata_checker import check_metadata
 from transforms import Normalise, ToFloat  # type:ignore
 
 
-def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBackend, experiment_models_folder_path: pathlib.Path, model_relative_path:pathlib.Path) -> Callable:
+def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBackend, experiment_models_folder_path=None, model_relative_path=None) -> Callable:
     architecture_dict = metadata_dict["architecture_dict"]
     if pipeline == "reconstruction":
         architecture_name = architecture_dict["reconstruction"]["name"]
@@ -34,7 +34,7 @@ def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBa
             )
             try:
                 load_network(
-                    experiment_models_folder_path,
+                    experiment_models_folder_path, #type:ignore
                     lpd_network,
                     model_relative_path,
                     indent_level=3,
@@ -62,7 +62,7 @@ def get_inference_function(metadata_dict: Dict, pipeline: str,odl_backend: ODLBa
             )
             try:
                 load_network(
-                    experiment_models_folder_path,
+                    experiment_models_folder_path, #type:ignore
                     fourier_filtering_module,
                     model_relative_path,
                     indent_level=3,

@@ -32,7 +32,8 @@ class LIDC_IDRI(Dataset):
         verbose=True,
         patient_list=[],
         rule='superior',
-        subtelty_value=4
+        subtelty_value=4,
+        annotation_size=512
         ):
         ## Instanciating the class attributes from constructor argument
         self.pipeline = pipeline
@@ -63,7 +64,7 @@ class LIDC_IDRI(Dataset):
             self.compute_patient_index_to_slices(patient_index_to_n_slices_file_path)
         self.patient_id_to_slices_of_interest: Dict = load_json(patient_index_to_n_slices_file_path)
 
-        if pipeline == 'segmentation':
+        if pipeline in ['joint', 'segmentation']:
             ## Define path to patients_masks
             """
             "LIDC-IDRI-xxxx": {
@@ -95,12 +96,13 @@ class LIDC_IDRI(Dataset):
             self.patient_id_to_slices_of_interest = dict(
                 (k, self.patient_index_to_segmented_slices[k]) for k in self.patients_with_nodules_of_interest
             )
-            if self.path_to_processed_dataset.joinpath(f"patient_index_to_large_annotations.json").is_file():
-                if verbose:
-                    print(f'{self.path_to_processed_dataset.joinpath(f"patient_index_to_large_annotations.json")} is a file, loading only large annotations')
-                self.patient_id_to_slices_of_interest = load_json(self.path_to_processed_dataset.joinpath(f"patient_index_to_large_annotations.json"))
-                print(f'There are {len(self.patient_id_to_slices_of_interest)} patients')
-                self.patients_masks = load_json(self.path_to_processed_dataset.joinpath("patient_index_to_large_annotations.json"))
+
+            path_to_annotations_file = self.path_to_processed_dataset.joinpath(f"patient_index_to_annotations_superior_to_{annotation_size}.json")
+            if not path_to_annotations_file.is_file():
+                self.compute_annotation_size(annotation_size)
+            self.patient_id_to_slices_of_interest = load_json(path_to_annotations_file)
+            print(f'There are {len(self.patient_id_to_slices_of_interest)} patients')
+            self.patients_masks = load_json(self.path_to_processed_dataset.joinpath(f"patient_index_to_annotations_superior_to_{annotation_size}.json"))
 
         ## Partitioning the dataset
         if is_subset == False:
@@ -191,6 +193,39 @@ class LIDC_IDRI(Dataset):
 
         return slice_index_to_patient_index_list, patient_index_to_first_index_dict
 
+    def get_patient_annotations(self, patient_index:str, annotation_size:int) -> Dict:
+        path_to_patient = self.path_to_processed_dataset.joinpath(patient_index)
+        large_annotations = {}
+        for mask_file_path in list(path_to_patient.glob(f'mask_*')):
+            slice_number  = mask_file_path.stem.split('_')[1]
+            nodule_number = mask_file_path.stem.split('_')[3]
+            annotation_number = mask_file_path.stem.split('_')[5]
+
+            mask = np.load(mask_file_path)
+            n_non_zeros = len(np.nonzero(mask)[0])
+
+            if annotation_size <= n_non_zeros:
+                if slice_number not in large_annotations:
+                    large_annotations[slice_number] = {}
+
+                if nodule_number not in large_annotations[slice_number]:
+                    large_annotations[slice_number][nodule_number] = []
+
+                large_annotations[slice_number][nodule_number].append(annotation_number)
+
+        return large_annotations
+
+    def compute_annotation_size(self, annotation_size:int) -> None:
+        save_file_path = self.path_to_processed_dataset.joinpath(f"patient_index_to_annotations_superior_to_{annotation_size}.json")
+        dataset_large_annotations = {}
+        for patient_index in range(1, 1012):
+            patient_index = f'LIDC-IDRI-{format_index(patient_index)}'
+            patient_large_annotations = self.get_patient_annotations(patient_index, annotation_size)
+            if len(patient_large_annotations) != 0:
+                print(f'Patient {patient_index} has {len(patient_large_annotations)} large annotations')
+                dataset_large_annotations[patient_index] = patient_large_annotations
+
+        save_json(save_file_path, dataset_large_annotations)
 
     def get_reconstruction_tensor(self, file_path: pathlib.Path) -> torch.Tensor:
         tensor = torch.from_numpy(np.load(file_path)).unsqueeze(0)

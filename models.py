@@ -457,7 +457,8 @@ class FourierFilteringModule(nn.Module):
 
     ):
         super(FourierFilteringModule, self).__init__()
-        self.dimension = fourier_filtering_dict['dimension']
+        module_dict = fourier_filtering_dict['module_dict']
+        self.dimension = module_dict['dimension']
         if self.dimension != 1:
             raise NotImplementedError(
                 "Fourier Filtering module not implemented for dimension !=1"
@@ -465,7 +466,7 @@ class FourierFilteringModule(nn.Module):
         self.n_measurements = n_measurements
         self.detector_size = detector_size
 
-        self.filter = FilterModule(self.dimension, self.detector_size, fourier_filtering_dict['name'], 0.1, device, fourier_filtering_dict['train'])
+        self.filter = FilterModule(self.dimension, self.detector_size, module_dict['name'], 0.1, device, module_dict['train'])
 
     def forward(self, sinogram: torch.Tensor) -> torch.Tensor:
         # sinogram size : [B_s, n_measurements, Det_size]
@@ -530,7 +531,7 @@ class Iteration(nn.Module):
         self.dual_block = self.dual_block.to(device)
 
         self.fourier_filtering_dict = fourier_filtering_dict
-        if fourier_filtering_dict['is_filter']:
+        if self.fourier_filtering_dict is not None:
             self.fourier_sinogram_filtering_module = FourierFilteringModule(
                 fourier_filtering_dict,
                 self.n_measurements,
@@ -614,7 +615,7 @@ class Iteration(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # dual block
         dual = self.dual_operation(primal, dual, input_sinogram)
-        if self.fourier_filtering_dict['is_filter']:
+        if self.fourier_filtering_dict is not None:
             dual = self.fourier_sinogram_filtering_module(dual)
         # primal block
         return self.primal_operation(primal, dual), dual
@@ -632,7 +633,10 @@ class LearnedPrimalDual(nn.Module):
         primal_dict  = network_dict['primal_dict']
         dual_dict    = network_dict['dual_dict']
         n_iterations = network_dict['n_iterations']
-        fourier_filtering_dict = network_dict['fourier_filtering_dict']
+        if 'fourier_filtering_dict' in network_dict.keys():
+            fourier_filtering_dict = network_dict['fourier_filtering_dict']
+        else:
+            fourier_filtering_dict = None
 
         self.operator_domain_shape = self.odl_backend.space_dict["shape"]  # type:ignore
         self.n_measurements = self.odl_backend.angle_partition_dict["shape"]
@@ -652,7 +656,7 @@ class LearnedPrimalDual(nn.Module):
                     self.detector_size,
                     primal_dict,
                     dual_dict,
-                    fourier_filtering_dict,
+                    fourier_filtering_dict, #type:ignore
                     device
                 ) for i in range(self.n_iterations)
             })

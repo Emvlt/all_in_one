@@ -118,7 +118,7 @@ def recursively_write_train_script(metadata_folder_path: pathlib.Path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--metadata_folder_path', default = 'metadata_folder')
+    parser.add_argument('--metadata_folder_path', default = 'metadata_folder/joint')
     args = parser.parse_args()
 
     metadata_file_path = pathlib.Path(args.metadata_folder_path)

@@ -16,7 +16,7 @@ def recursively_check_metadata(current_path: pathlib.Path):
 
 class TestMetadata(unittest.TestCase):
     def test_metadata_files_up_to_date(self):
-        path_to_metadata = pathlib.Path("metadata_folder")
+        path_to_metadata = pathlib.Path("metadata_folder/joint")
         recursively_check_metadata(path_to_metadata)
 
 

@@ -116,9 +116,9 @@ class ODLBackend:
             self.initialised
         ), "ODL backend not initialised, consider running odl_backend.initialise_odl_backend_from_metadata_dict"
         return (
-            self.pytorch_operator.to(device),
-            self.pytorch_operator_adjoint.to(device),
-            self.pytorch_operator_norm.to(device),
+            self.pytorch_operator.to(device), #type:ignore
+            self.pytorch_operator_adjoint.to(device), #type:ignore
+            self.pytorch_operator_norm.to(device), #type:ignore
         )  # type:ignore
 
     def get_sinogram(self, sample: torch.Tensor) -> torch.Tensor:

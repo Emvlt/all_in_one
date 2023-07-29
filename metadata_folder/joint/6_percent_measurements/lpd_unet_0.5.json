@@ -6,21 +6,24 @@
         "is_subset":false,
         "batch_size":8,
         "num_workers":2,
-        "reconstructed":true,
         "shuffle":false
     },
 
     "training_dict":{
-        "learning_rate":1e-5,
-        "n_epochs":100,
-        "segmentation_loss":"BCE"
+        "learning_rate":5e-6,
+        "n_epochs":200,
+        "segmentation_loss":"BCE",
+        "reconstruction_loss":"MSE",
+        "sinogram_loss":"L1",
+        "segmentation_loss_weighting":0.5,
+        "dual_loss_weighting":0
 
     },
 
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
-            "train":false,
+            "train":true,
             "primal_dict":{
                 "dimension":2,
                 "name":"Unet",
@@ -34,10 +37,7 @@
                 "n_filters":16
             },
             "n_iterations":1,
-            "fourier_filtering_dict":{
-                "is_filter":false
-            },
-            "load_path":"reconstruction/100_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_6_9.pth",
+            "load_path":"reconstruction/6_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_6_9.pth",
             "device_name":"cuda:0"
 
         },
@@ -54,7 +54,7 @@
                 "activation_function":"sigmoid"
             },
             "output_tensor":"mask",
-            "load_path":"",
+            "load_path":"segmentation/6_percent_measurements/lpd_unet.pth",
             "device_name":"cuda:0"
         }
     },
@@ -68,7 +68,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":1024
+            "shape":64
         },
         "detector_partition_dict":{
             "min_pt":-473,

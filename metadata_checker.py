@@ -2,22 +2,22 @@ from typing import Dict
 import pathlib
 
 def check_boolean(variable_name:str, variable_value):
-    assert type(variable_value) == bool, f'{variable_name} must be a boolean'
+    assert type(variable_value) == bool, f'{variable_name} must be a boolean, currently {variable_value} is {type(variable_value)}'
 
 def check_integer(variable_name:str, variable_value):
-    assert type(variable_value) == int, f'{variable_name} must be an integer'
+    assert type(variable_value) == int, f'{variable_name} must be an integer, currently {variable_value} is {type(variable_value)}'
 
 def check_float(variable_name:str, variable_value):
-    assert type(variable_value) == float, f'{variable_name} must be a float'
+    assert type(variable_value) == float, f'{variable_name} must be a float, currently {variable_value} is {type(variable_value)}'
 
 def check_string(variable_name:str, variable_value):
-    assert type(variable_value) == str, f'{variable_name} must be a string'
+    assert type(variable_value) == str, f'{variable_name} must be a string, currently {variable_value} is {type(variable_value)}'
 
 def check_dict(variable_name:str, variable_value):
-    assert type(variable_value) == type({}), f'{variable_name} must be a dictionnary'
+    assert type(variable_value) == type({}), f'{variable_name} must be a dictionnary, currently {variable_value} is {type(variable_value)}'
 
 def check_list(variable_name:str, variable_value):
-    assert type(variable_value) == type([]), f'{variable_name} must be a list'
+    assert type(variable_value) == type([]), f'{variable_name} must be a list, currently {variable_value} is {type(variable_value)}'
 
 def check_scan_parameter_dict(scan_parameter_dict:Dict):
     assert 'space_dict' in scan_parameter_dict.keys(), 'Provide a space dictionnary'
@@ -53,11 +53,18 @@ def check_training_dict(training_dict:Dict):
     assert "n_epochs" in training_dict.keys(), "provide number of training epochs"
     check_integer('n_epochs', training_dict['n_epochs'])
 
-def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_dict:Dict):
-    assert 'device_name' in reconstruction_dict.keys(), 'Specify reconstruction device name'
+def check_fourier_filtering_network_consistency(fourier_filtering_module_dict:Dict):
+    assert 'name' in fourier_filtering_module_dict.keys(), 'Provide name str argument'
+    check_string('name',fourier_filtering_module_dict['name'])
 
-    assert "train" in reconstruction_dict.keys(), 'Specify training mode'
-    check_boolean('train', reconstruction_dict['train'])
+    assert 'train' in fourier_filtering_module_dict.keys(), 'Provide train boolean argument'
+    check_boolean('train',fourier_filtering_module_dict['train'])
+
+    assert 'dimension' in fourier_filtering_module_dict.keys(), 'Provide dimension int argument'
+    check_integer('dimension',fourier_filtering_module_dict['dimension'])
+
+
+def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_dict:Dict):
 
     if reconstruction_dict['name']  == 'lpd':
         assert 'primal_dict' in reconstruction_dict.keys(), 'Specify LPD architecture primal_dict'
@@ -84,6 +91,11 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
         assert 'n_filters' in dual_dict.keys(), 'Specify LPD dual n_filters'
         check_integer('n_filters',dual_dict ['n_filters'])
 
+        assert 'device_name' in reconstruction_dict.keys(), 'Specify reconstruction device name'
+
+        assert "train" in reconstruction_dict.keys(), 'Specify training mode'
+        check_boolean('train', reconstruction_dict['train'])
+
         if reconstruction_dict['train']:
             assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
             check_training_dict(metadata_dict['training_dict'])
@@ -98,16 +110,10 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
         else:
             assert 'load_path' in reconstruction_dict.keys(), 'specify load path for reconstruction network'
 
-        assert 'fourier_filtering_dict' in reconstruction_dict.keys()
-        fourier_filtering_dict = reconstruction_dict['fourier_filtering_dict']
-        check_dict('fourier_filtering_dict',fourier_filtering_dict)
-
-        if fourier_filtering_dict['is_filter']:
-            assert 'name' in fourier_filtering_dict.keys(), 'Provide filter_name str argument'
-            check_string('name',fourier_filtering_dict['name'])
-
-            assert 'train' in fourier_filtering_dict.keys(), 'Provide train boolean argument'
-            check_boolean('train',fourier_filtering_dict['train'])
+        if 'fourier_filtering_dict' in reconstruction_dict.keys():
+            assert 'module_dict' in reconstruction_dict.keys(), 'Provide module dict argument'
+            check_dict('module_dict', reconstruction_dict['module_dict'])
+            check_fourier_filtering_network_consistency(reconstruction_dict['module_dict'])
 
     elif reconstruction_dict['name'] =='filtered_backprojection':
         assert 'filter_name' in reconstruction_dict.keys(), 'Provide filter_name str argument'
@@ -117,15 +123,9 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
         pass
 
     elif reconstruction_dict['name'] =='fourier_filtering':
-        assert 'filter_name' in reconstruction_dict.keys(), 'Provide filter_name str argument'
-        check_string('filter_name', reconstruction_dict['filter_name'])
-
-        assert 'dimension' in reconstruction_dict.keys(), 'Provide dimension int argument'
-        check_integer('dimension', reconstruction_dict['dimension'])
-
-        if reconstruction_dict['train']:
-            assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
-            check_training_dict(metadata_dict['training_dict'])
+        assert 'module_dict' in reconstruction_dict.keys(), 'Provide module dict argument'
+        check_dict('module_dict', reconstruction_dict['module_dict'])
+        check_fourier_filtering_network_consistency(reconstruction_dict['module_dict'])
 
     else:
         raise NotImplementedError(f"Reconstruction network {reconstruction_dict['name']} not implemented.")
@@ -136,6 +136,7 @@ def check_segmentation_network_consistency(segmentation_dict:Dict, metadata_dict
     assert "train" in segmentation_dict.keys(), 'Specify training mode channels'
     check_boolean('train', segmentation_dict['train'])
 
+
     if segmentation_dict['train']:
             assert 'training_dict' in metadata_dict.keys(), 'Provide training dictionnary'
             check_training_dict(metadata_dict['training_dict'])
@@ -144,10 +145,8 @@ def check_segmentation_network_consistency(segmentation_dict:Dict, metadata_dict
             assert "segmentation_loss" in training_dict.keys(), 'Provide segmentation_loss argument to the training_dict'
 
             data_feeding_dict = metadata_dict['data_feeding_dict']
-            assert "reconstructed" in data_feeding_dict.keys(), 'Specify reconstructed boolean argument'
-            check_boolean('reconstructed', data_feeding_dict['reconstructed'])
 
-            if data_feeding_dict['reconstructed']:
+            if 'reconstruction' in metadata_dict['architecture_dict']:
                 check_reconstruction_network_consistency(metadata_dict['architecture_dict']['reconstruction'], metadata_dict)
 
 
@@ -189,6 +188,9 @@ def check_data_feeding_consistency(data_feeding_dict:Dict):
 
     assert 'is_subset' in data_feeding_dict.keys(), 'Provide is_subset argument to dict'
     check_boolean('is_subset', data_feeding_dict['is_subset'])
+
+    assert 'shuffle' in data_feeding_dict.keys(), 'Provide shuffle argument to dict'
+    check_boolean('shuffle', data_feeding_dict['shuffle'])
 
     assert "num_workers" in data_feeding_dict.keys(), "provide number of dataloader workers"
     check_integer('num_workers', data_feeding_dict['num_workers'])

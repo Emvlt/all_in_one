@@ -10,7 +10,7 @@ from torch.utils.tensorboard import SummaryWriter  # type:ignore
 
 from datasets import LIDC_IDRI
 from backends.odl import ODLBackend
-from train_functions import train_reconstruction_network, train_segmentation_network
+from train_functions import train_reconstruction_network, train_segmentation_network, train_joint_pipeline
 from utils import PyPlotImageWriter, unpack_hparams
 from metadata_checker import check_metadata
 from transforms import Normalise, ToFloat  # type:ignore
@@ -124,9 +124,18 @@ if __name__ == "__main__":
     elif pipeline == "segmentation":
         train_segmentation_network(
             odl_backend=odl_backend,
-            architecture_dict=architecture_dict,
-            training_dict=training_dict,
-            data_feeding_dict=data_feeding_dict,
+            metadata_dict=metadata_dict,
+            train_dataloader=training_dataloader,
+            image_writer=image_writer,
+            run_writer=run_writer,
+            load_folder_path = models_path,
+            save_file_path=save_file_path,
+        )
+
+    elif pipeline == "joint":
+        train_joint_pipeline(
+            odl_backend=odl_backend,
+            metadata_dict=metadata_dict,
             train_dataloader=training_dataloader,
             image_writer=image_writer,
             run_writer=run_writer,
