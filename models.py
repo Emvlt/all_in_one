@@ -11,6 +11,7 @@ def load_network(
     network: torch.nn.Module,
     load_path,
     indent_level=None,
+    map_location='cuda:0'
 ):
     if isinstance(load_path, str):
         load_path = pathlib.Path(load_path)
@@ -31,7 +32,7 @@ def load_network(
         print(
             "\t" * offset + f"Loading model state_dict from {model_load_path}"
         )  # type:ignore
-        network.load_state_dict(torch.load(model_load_path))
+        network.load_state_dict(torch.load(model_load_path, map_location))
     else:
         print(
             "\t" * offset + f"No file found at {model_load_path}, no initialisation"
