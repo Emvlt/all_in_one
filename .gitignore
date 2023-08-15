@@ -9,3 +9,5 @@ odl/
 plots/
 results/
 siemens_reconstruction/
+runs/
+models/
