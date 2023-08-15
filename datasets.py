@@ -1,8 +1,10 @@
 from typing import List, Dict
-import pathlib
+from pathlib import Path
 import random
 import math
+import ast
 
+import pandas as pd
 import torch
 import numpy as np
 from torch.utils.data import Dataset
@@ -17,11 +19,317 @@ def format_index(index: int) -> str:
     assert len(str_index) == 4
     return str_index
 
+class PatientDataset(Dataset):
+    def __init__(
+        self,
+        path_to_processed_dataset:Path,
+        patient_index:str,
+        slices,
+        annotations_dataframe:pd.DataFrame,
+
+        transform = None) -> None:
+        ## Defining the path to data
+        self.path_to_processed_dataset = path_to_processed_dataset
+        ###
+        self.patient_index = patient_index
+        self.slices = ast.literal_eval(slices)
+        self.annotations_dataframe = annotations_dataframe
+        self.transform=transform
+        print(f'The PatientDataset Object for the patient {patient_index} has {len(self.slices)} slices')
+        print(f'Of these, there are {len(self.annotations_dataframe)} annotations')
+
+    def compute_mask_tensor(self, patient_index: str, slice_index: int) -> torch.Tensor:
+        mask = torch.zeros((512, 512), dtype=torch.bool)
+        df_query = f'"{patient_index}" == patient_index & {slice_index} == slice'
+        subset = self.annotations_dataframe.query(df_query)
+        slice_nodules = subset['nodule'].unique()
+        for nodule in slice_nodules:
+            annotations = subset[subset['nodule'] == nodule]
+            annotation_row = annotations.sample()
+            nodule_index = annotation_row['nodule'].values[0]
+            annotation_index = annotation_row['annotation'].values[0]
+            path_to_mask = self.path_to_processed_dataset.joinpath(
+                f"{patient_index}/mask_{slice_index}_nodule_{nodule_index}_annotation_{annotation_index}.npy"
+            )
+            nodule_mask = torch.from_numpy(np.load(path_to_mask))
+            mask = mask.bitwise_or(nodule_mask)
+        mask = mask.int()
+        return mask.unsqueeze(0)
+
+    def compute_reconstruction_tensor(self, patient_index:str, slice_index:int) -> torch.Tensor:
+        return torch.from_numpy(
+            np.load(self.path_to_processed_dataset.joinpath(f'{patient_index}/slice_{slice_index}.npy'))
+            ).unsqueeze(0)
+
+    def __len__(self):
+        return len(self.slices)
+
+    def __getitem__(self, index):
+        ### Compute reconstruction tensor
+        reconstruction_tensor = self.compute_reconstruction_tensor(self.patient_index, self.slices[index])
+        ### Compute mask tensor
+        mask_tensor  = self.compute_mask_tensor(self.patient_index, index)
+        if self.transform is not None:
+            reconstruction_tensor = self.transform["reconstruction_transforms"](
+                reconstruction_tensor
+            )
+            mask_tensor = self.transform["mask_transforms"](mask_tensor)
+        return index, reconstruction_tensor, mask_tensor
+
+class LIDC_IDRI_SEGMENTATIONS(Dataset):
+    def __init__(
+        self,
+        path_to_processed_dataset:Path,
+        training_proportion: float,
+        training: bool,
+        query_string:str,
+        transform=None,
+        verbose=True
+        ):
+        ## Defining the path to data
+        self.path_to_processed_dataset = path_to_processed_dataset
+        """
+        The path_to_processed_dataset attribute (pathlib.Path) points towards the folder
+        where the data is stored
+        """
+        ## Defining dataset partition
+        self.training_proportion = training_proportion
+        """
+        The training_proportion attribute (float) indicates what proportion of the
+        dataset is used for training
+        """
+        self.training = training
+        """
+        The training attribute (bool) set the training/testing mode for the dataset
+        """
+        ## Defining the transform
+        self.transform = transform
+        """
+        The transform attribute (torch.nn.Compose() | None) specifies what transforms need to
+        be applied to the training data when __getitem__ function is called
+        """
+        ## Defining the annotation dataframe path
+        self.annotations_dataframe_path = self.path_to_processed_dataset.joinpath('annotations_dataframe.csv')
+        """
+        The annotation_dataframe_path (pathlib.Path) points towards the csv dataframe that maps patient indices
+        to their metadata, see self.dataframe doc
+        """
+        ## Get the annotation dataframe
+        if not self.annotations_dataframe_path.is_file():
+            print('Dataframe file not found, computing...')
+            self.compute_annotations_dataset_dataframe()
+        self.annotations_dataframe = pd.read_csv(self.annotations_dataframe_path)
+        """
+        The dataframe (pd.Dataframe) attribute maps \n
+        patient_index / slice_index / nodule_index / annotation_index / nodule_size \n
+        It is they key element of the dataset, as it can be queried to return only the
+        rows that contain the data of interest
+        """
+        ## Defining the all slices dataframe path
+        self.all_slices_dataframe_path = self.path_to_processed_dataset.joinpath('all_slices_dataframe.csv')
+        """
+        The all_slices_dataframe_path (pathlib.Path) points towards the csv dataframe that maps patient indices
+        to their slices
+        """
+        ## Get the annotation dataframe
+        if not self.all_slices_dataframe_path.is_file():
+            print('Dataframe file not found, computing...')
+            self.compute_all_slices_dataset_dataframe()
+        self.all_slices_dataframe = pd.read_csv(self.all_slices_dataframe_path)
+        """
+        The dataframe (pd.Dataframe) attribute maps \n
+        patient_index / slice_index / nodule_index / annotation_index / nodule_size \n
+        It is they key element of the dataset, as it can be queried to return only the
+        rows that contain the data of interest
+        """
+
+        ## Query the subset of the dataframe
+        self.annotations_dataframe_subset = self.annotations_dataframe.query(query_string)
+        """
+        The dataframe_subset (pd.Dataframe) is the subset of the self.dataframe attribute that
+        contains only the annotations that comply with the query
+        """
+        ## Get the unique patient indices
+        self.all_patients_lists = self.annotations_dataframe_subset['patient_index'].unique()
+        """
+        The all_patients_lists (List) attribute is the list of unique patient indices that
+        have annotations that comply with the query
+        """
+        self.total_patients  = len(self.all_patients_lists)
+        """
+        The total_patients (int) attribute is the number of different patients in the dataset
+        """
+        ## Partitioning the dataset
+
+        self.patients_list: List
+        """
+        The patients_list (List) attribute is the list of patient indices that will be used for
+        training or testing, depending on the self.training attribute
+        <!> Type Checking Error <!>
+        --> Type checking will return an error when accessing self.patient_indices as a list,
+            as returned type from pd.Series.unique is np.ndarray.
+            No error is raised at runtime so it should be alright.
+        <!> Attribute Naming <!>
+        --> Compared to all_patients_list, patients_list attribute only contains the patients
+            used for training or testing, based on the self.training attribute
+        """
+
+        if self.training:
+            self.patients_list = self.all_patients_lists[ #type:ignore
+                :math.floor(self.training_proportion * self.total_patients)
+                ]
+
+        else:
+            self.patients_list = self.all_patients_lists[ #type:ignore
+                math.ceil((self.training_proportion) * self.total_patients) :
+                ]
+
+        self.annotations_dataframe_query = self.annotations_dataframe_subset[
+            self.annotations_dataframe_subset['patient_index'].isin(self.patients_list)
+            ]
+        """
+        The annotations_dataframe (pd.Dataframe) attribute is the subset of the self.dataframe_subset
+        attribute that will be used for training or testing, based on the self.training attribute
+        """
+        self.patient_to_annotated_slices = self.annotations_dataframe[
+            self.annotations_dataframe['patient_index'].isin(self.patients_list)
+            ]
+        """
+        The patient_to_slices (pd.Dataframe) attribute maps the all the slices of each patient
+        used for training or testing, based on the self.training attribute
+        """
+
+        self.compute_index_dataframe()
+
+        self.index_dataframe:pd.DataFrame
+        """
+        The index_dataframe (pd.Dataframe) attribute maps patient indices to slices
+        that have annotations of interest. It is made from a dict that looks like \n
+        {
+            patient_index : ['LIDC-IDRI-xxxx', 'LIDC-IDRI-xxxx', ...], \n
+            slice_index :   ['y', 'y+1', ...] \n
+        }
+        """
+
+    def compute_index_dataframe(self):
+        index_dict = {
+            'patient_index' : [],
+            'slice_index' : [],
+        }
+        for patient_index in self.patients_list:
+            patient_annotations = self.annotations_dataframe.query(f'"{patient_index}" == patient_index')
+            unique_slices = patient_annotations['slice'].unique()
+            for slice_index in unique_slices:
+                index_dict['patient_index'].append(patient_index)
+                index_dict['slice_index'].append(slice_index)
+        self.index_dataframe = pd.DataFrame.from_dict(index_dict)
+
+    def get_all_patient_slices(self, patient_index:str) -> List[int]:
+        return self.all_slices_dataframe[self.all_slices_dataframe['patient_index'] == patient_index]['slices'].iloc[0]
+
+    def compute_all_slices_dataset_dataframe(self):
+        print('Computing all slices dataframe...')
+        slices_dict = {
+            'patient_index' : [],
+            'slices': []
+        }
+        for patient_index in range(1, 1012):
+            patient_index = f'LIDC-IDRI-{format_index(patient_index)}'
+            path_to_patient = self.path_to_processed_dataset.joinpath(patient_index)
+            n_slices = len(list(path_to_patient.glob(f'slice_*')))
+            slices_dict['patient_index'].append(patient_index)
+            slices_dict['slices'].append([i for i in range(n_slices)])
+        dataframe = pd.DataFrame.from_dict(slices_dict)
+        dataframe.to_csv(self.all_slices_dataframe_path, index=False)
+
+    def compute_annotations_dataset_dataframe(self):
+        print('Computing all annotations dataframe...')
+        annotation_dict = {
+        'patient_index' : [],
+        'slice': [],
+        'slice_path':[],
+        'nodule' : [],
+        'annotation' : [],
+        'nodule_size':[]
+        }
+
+        for patient_index in range(1, 1012):
+            patient_index = f'LIDC-IDRI-{format_index(patient_index)}'
+            path_to_patient = self.path_to_processed_dataset.joinpath(patient_index)
+            for mask_file_path in list(path_to_patient.glob(f'mask_*')):
+                slice_number  = mask_file_path.stem.split('_')[1]
+                nodule_number = mask_file_path.stem.split('_')[3]
+                annotation_number = mask_file_path.stem.split('_')[5]
+
+                mask = np.load(mask_file_path)
+                n_non_zeros = len(np.nonzero(mask)[0])
+
+                annotation_dict['patient_index'].append(patient_index)
+                annotation_dict['slice'].append(slice_number)
+                annotation_dict['slice_path'].append(f'{patient_index}/{mask_file_path.name}')
+                annotation_dict['nodule'].append(nodule_number)
+                annotation_dict['annotation'].append(annotation_number)
+                annotation_dict['nodule_size'].append(n_non_zeros)
+
+        dataframe = pd.DataFrame.from_dict(annotation_dict)
+        dataframe.to_csv(self.annotations_dataframe_path, index=False)
+
+    def get_patient_dataset(self, patient_index:str) -> PatientDataset:
+        return PatientDataset(
+            self.path_to_processed_dataset,
+            patient_index,
+            self.get_all_patient_slices(patient_index),
+            annotations_dataframe=self.annotations_dataframe_query[self.annotations_dataframe_query['patient_index'] == patient_index],
+            transform=self.transform
+        )
+
+    def compute_mask_tensor(self, patient_index: str, slice_index: int) -> torch.Tensor:
+        mask = torch.zeros((512, 512), dtype=torch.bool)
+        df_query = f'"{patient_index}" == patient_index & {slice_index} == slice'
+        subset = self.annotations_dataframe_query.query(df_query)
+        slice_nodules = subset['nodule'].unique()
+        for nodule in slice_nodules:
+            annotations = subset[subset['nodule'] == nodule]
+            annotation_row = annotations.sample()
+            nodule_index = annotation_row['nodule'].values[0]
+            annotation_index = annotation_row['annotation'].values[0]
+            path_to_mask = self.path_to_processed_dataset.joinpath(
+                f"{patient_index}/mask_{slice_index}_nodule_{nodule_index}_annotation_{annotation_index}.npy"
+            )
+            nodule_mask = torch.from_numpy(np.load(path_to_mask))
+            mask = mask.bitwise_or(nodule_mask)
+        mask = mask.int()
+        return mask.unsqueeze(0)
+
+    def compute_reconstruction_tensor(self, patient_index:str, slice_index:int) -> torch.Tensor:
+        return torch.from_numpy(
+            np.load(self.path_to_processed_dataset.joinpath(f'{patient_index}/slice_{slice_index}.npy'))
+            ).unsqueeze(0)
+
+    def __len__(self):
+        return len(self.index_dataframe)
+
+    def __getitem__(self, index):
+        ## Access row
+        row = self.index_dataframe.iloc[index]
+        ## Unpack row information
+        patient_index = row['patient_index']
+        slice_index = row['slice_index']
+        ### Compute reconstruction tensor
+        reconstruction_tensor = self.compute_reconstruction_tensor(patient_index, slice_index)
+        ### Compute mask tensor
+        mask_tensor  = self.compute_mask_tensor(patient_index, slice_index)
+        if self.transform is not None:
+            reconstruction_tensor = self.transform["reconstruction_transforms"](
+                reconstruction_tensor
+            )
+            mask_tensor = self.transform["mask_transforms"](mask_tensor)
+        return reconstruction_tensor, mask_tensor
 
 class LIDC_IDRI(Dataset):
     def __init__(
         self,
-        path_to_dataset: pathlib.Path,
+        path_to_dataset: Path,
         pipeline: str,
         backend: ODLBackend,
         training_proportion: float,
@@ -62,6 +370,7 @@ class LIDC_IDRI(Dataset):
         patient_index_to_n_slices_file_path = self.path_to_processed_dataset.joinpath("patient_index_to_slices.json")
         if not patient_index_to_n_slices_file_path.is_file():
             self.compute_patient_index_to_slices(patient_index_to_n_slices_file_path)
+        self.patient_id_to_all_slices: Dict = load_json(patient_index_to_n_slices_file_path)
         self.patient_id_to_slices_of_interest: Dict = load_json(patient_index_to_n_slices_file_path)
 
         if pipeline in ['joint', 'segmentation']:
@@ -103,6 +412,8 @@ class LIDC_IDRI(Dataset):
             self.patient_id_to_slices_of_interest = load_json(path_to_annotations_file)
             print(f'There are {len(self.patient_id_to_slices_of_interest)} patients')
             self.patients_masks = load_json(self.path_to_processed_dataset.joinpath(f"patient_index_to_annotations_superior_to_{annotation_size}.json"))
+
+            self.patients_masks_all = load_json(self.path_to_processed_dataset.joinpath("patients_masks.json"))
 
         ## Partitioning the dataset
         if is_subset == False:
@@ -152,7 +463,7 @@ class LIDC_IDRI(Dataset):
         if verbose:
             print(f"Patient lists ready")
 
-    def compute_patient_index_to_segmented_slices(self, save_file_path: pathlib.Path):
+    def compute_patient_index_to_segmented_slices(self, save_file_path: Path):
         patient_index_to_segmented_slices = {}
         for index in range(1, 1012):
             patient_name = f"LIDC-IDRI-{format_index(index)}"
@@ -170,7 +481,7 @@ class LIDC_IDRI(Dataset):
 
         save_json(save_file_path, patient_index_to_segmented_slices)
 
-    def compute_patient_index_to_slices(self, save_file_path: pathlib.Path):
+    def compute_patient_index_to_slices(self, save_file_path: Path):
         patient_index_to_segmented_slices = {}
         for index in range(1, 1012):
             patient_name = f"LIDC-IDRI-{format_index(index)}"
@@ -227,15 +538,15 @@ class LIDC_IDRI(Dataset):
 
         save_json(save_file_path, dataset_large_annotations)
 
-    def get_reconstruction_tensor(self, file_path: pathlib.Path) -> torch.Tensor:
+    def get_reconstruction_tensor(self, file_path: Path) -> torch.Tensor:
         tensor = torch.from_numpy(np.load(file_path)).unsqueeze(0)
         return tensor
 
-    def get_sinogram_tensor(self, file_path: pathlib.Path) -> torch.Tensor:
+    def get_sinogram_tensor(self, file_path: Path) -> torch.Tensor:
         #### EXPENSIVE ####
         return self.backend.get_sinogram(self.get_reconstruction_tensor(file_path))
 
-    def get_filtered_backprojection(self, file_path: pathlib.Path) -> torch.Tensor:
+    def get_filtered_backprojection(self, file_path: Path) -> torch.Tensor:
         return torch.from_numpy(
             self.backend.get_filtered_backprojection(
                 self.backend.operator(np.load(file_path)), "Hann" #type:ignore
