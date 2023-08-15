@@ -47,11 +47,12 @@ def check_scan_parameter_dict(scan_parameter_dict:Dict):
     assert 'beam_geometry' in scan_parameter_dict['geometry_dict'], 'beam_geometry not provided in geometry dictionary'
 
 def check_training_dict(training_dict:Dict):
-    assert "learning_rate" in training_dict.keys(), "provide learning rate"
-    check_float('learning_rate', training_dict['learning_rate'])
+    '''assert "learning_rate" in training_dict.keys(), "provide learning rate"
+    check_float('learning_rate', training_dict['learning_rate'])'''
 
-    assert "n_epochs" in training_dict.keys(), "provide number of training epochs"
-    check_integer('n_epochs', training_dict['n_epochs'])
+    '''assert "n_epochs" in training_dict.keys(), "provide number of training epochs"
+    check_integer('n_epochs', training_dict['n_epochs'])'''
+    pass
 
 def check_fourier_filtering_network_consistency(fourier_filtering_module_dict:Dict):
     assert 'name' in fourier_filtering_module_dict.keys(), 'Provide name str argument'
@@ -101,11 +102,13 @@ def check_reconstruction_network_consistency(reconstruction_dict:Dict, metadata_
             check_training_dict(metadata_dict['training_dict'])
             training_dict = metadata_dict['training_dict']
 
+            '''
             assert 'dual_loss_weighting' in training_dict.keys(), 'Provide dual_loss_weighting argument to training_dict'
             assert 0<=training_dict['dual_loss_weighting'] <= 1, f"Dual loss must be in ]0,1], currently is {training_dict['dual_loss_weighting']}"
+            '''
 
             assert "reconstruction_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
-            assert "sinogram_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
+            #assert "sinogram_loss" in training_dict.keys(), 'Provide reconstruction argument to the training_dict'
 
         else:
             assert 'load_path' in reconstruction_dict.keys(), 'specify load path for reconstruction network'
@@ -186,8 +189,6 @@ def check_data_feeding_consistency(data_feeding_dict:Dict):
     assert 'train' in data_feeding_dict.keys(), 'Provide train boolean argument to dict'
     check_boolean('train', data_feeding_dict['train'])
 
-    assert 'is_subset' in data_feeding_dict.keys(), 'Provide is_subset argument to dict'
-    check_boolean('is_subset', data_feeding_dict['is_subset'])
 
     assert 'shuffle' in data_feeding_dict.keys(), 'Provide shuffle argument to dict'
     check_boolean('shuffle', data_feeding_dict['shuffle'])
@@ -197,10 +198,6 @@ def check_data_feeding_consistency(data_feeding_dict:Dict):
 
     assert "batch_size" in data_feeding_dict.keys(), "provide batch size"
     check_integer('batch_size', data_feeding_dict['batch_size'])
-
-    if data_feeding_dict['is_subset']:
-        assert "subset" in data_feeding_dict.keys(), "provide subset list argument"
-        check_list('subset', data_feeding_dict['subset'])
 
     assert 'training_proportion' in data_feeding_dict.keys(), 'Provide training_proportion argument to dict'
 
