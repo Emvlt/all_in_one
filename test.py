@@ -1,28 +1,16 @@
 import argparse
 import pathlib
-from datetime import datetime
-from typing import Dict
 
 import json
 from torchvision.transforms import Compose
-from torch.utils.data import DataLoader
-from torch.utils.tensorboard import SummaryWriter  # type:ignore
+import matplotlib.pyplot as plt
 
-from datasets import LIDC_IDRI
-from backends.odl import ODLBackend
-from train_functions import train_reconstruction_network, train_segmentation_network
-from utils import PyPlotImageWriter, unpack_hparams
-from metadata_checker import check_metadata
 from transforms import Normalise, ToFloat  # type:ignore
-
-VERBOSE_DICT ={
-    'holly-b':True,
-    'hpc':False
-}
+from datasets import LIDC_IDRI
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--metadata_path", required=True)
+    parser.add_argument("--metadata_path", required=False, default = 'metadata_folder/joint/6_percent_measurements/lpd_unet_0.json')
     parser.add_argument("--platform", required=False, default='holly-b')
     args = parser.parse_args()
 
@@ -46,51 +34,32 @@ if __name__ == "__main__":
     training_dict = metadata_dict["training_dict"]
     architecture_dict = metadata_dict["architecture_dict"]
 
-    ## Sanity checks
-    check_metadata(metadata_dict, file_path=metadata_path)
-
-    ## Instanciate backend
-    odl_backend = ODLBackend()
-    try:
-        scan_parameter_dict = metadata_dict["scan_parameter_dict"]
-        odl_backend.initialise_odl_backend_from_metadata_dict(scan_parameter_dict)
-    except KeyError:
-        print("No scanning dict in metadata, passing...")
-
-    ## Transforms
     transforms = {
         "reconstruction_transforms": Compose([ToFloat(), Normalise()]),
-        "mask_transforms": Compose([ToFloat()]),
+        "mask_transforms": Compose([ToFloat()])
     }
-
-    ## Dataset and Dataloader
-    if data_feeding_dict["is_subset"]:
-        training_lidc_idri_dataset = LIDC_IDRI(
-            DATASET_PATH,
-            str(pipeline),
-            odl_backend,
-            data_feeding_dict["training_proportion"],
-            data_feeding_dict["train"],
-            data_feeding_dict["is_subset"],
-            transform=transforms,
-            subset=data_feeding_dict['subset']
-        )
+    if pipeline == 'reconstruction':
+        query_string = None
     else:
-        training_lidc_idri_dataset = LIDC_IDRI(
-            DATASET_PATH,
-            str(pipeline),
-            odl_backend,
-            data_feeding_dict["training_proportion"],
-            data_feeding_dict["train"],
-            data_feeding_dict["is_subset"],
-            transform=transforms
+        query_string = f'{256} < nodule_size'
+    dataset = LIDC_IDRI(
+            path_to_processed_dataset=DATASET_PATH,
+            training_proportion = data_feeding_dict['training_proportion'],
+            training = True,
+            pipeline=pipeline,
+            query_string=query_string,
+            transform = transforms
         )
+    print(dataset)
+    print(dataset.get_all_patient_slices('LIDC-IDRI-0001'))
+    '''patient_dataset = dataset.get_patient_dataset('LIDC-IDRI-0020')
+    print(patient_dataset)
+    index = 100
+    rec = patient_dataset.compute_reconstruction_tensor(index)
+    mask = patient_dataset.compute_mask_tensor(index)
+    print(mask.size())
+    plt.matshow(mask[0].detach().cpu())
+    plt.savefig(f'm_{index}.jpg')
+    plt.clf()'''
 
-    print(len(training_lidc_idri_dataset.training_patients_list))
-    d = training_lidc_idri_dataset.patient_id_to_slices_of_interest
-    total_slices = 0
-    for patient_name, patient_dict in d.items():
-        n_slices = len(patient_dict.keys())
-        total_slices += n_slices
-        print(f'Patient {patient_name} has {n_slices} slices of interest: {list(patient_dict.keys())}')
-    print(f'There is a total of {total_slices} in the dataset')
+

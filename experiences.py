@@ -11,8 +11,7 @@ from torch.utils.tensorboard import SummaryWriter  # type:ignore
 from datasets import LIDC_IDRI
 from backends.odl import ODLBackend
 from train_functions import train_reconstruction_network, train_segmentation_network, train_joint_pipeline
-from utils import PyPlotImageWriter, unpack_hparams
-from metadata_checker import check_metadata
+from utils import PyPlotImageWriter
 from transforms import Normalise, ToFloat  # type:ignore
 
 VERBOSE_DICT ={
@@ -45,9 +44,6 @@ if __name__ == "__main__":
     data_feeding_dict = metadata_dict["data_feeding_dict"]
     training_dict = metadata_dict["training_dict"]
     architecture_dict = metadata_dict["architecture_dict"]
-
-    ## Sanity checks
-    check_metadata(metadata_dict, file_path=metadata_path)
 
     ## Instanciate backend
     odl_backend = ODLBackend()

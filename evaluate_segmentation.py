@@ -16,9 +16,9 @@ import pandas as pd
 
 from metrics import PSNR
 from backends.odl import ODLBackend
-from datasets import LIDC_IDRI, LIDC_IDRI_SEGMENTATIONS, PatientDataset
+from datasets import LIDC_IDRI_SEGMENTATIONS, PatientDataset
 from transforms import Normalise, ToFloat  # type:ignore
-from train_functions import unpack_architecture_dicts
+from train import unpack_architecture_dicts
 
 def load_evaluation_dict(results_file_path:Path) -> Dict:
     if results_file_path.is_file():
@@ -104,11 +104,11 @@ if pipeline == 'segmentation':
 
 elif pipeline == 'joint':
     segmentation_network = networks['segmentation']
-    segmentation_network.load_state_dict(checkpoint['segmentation_net'])
+    segmentation_network.load_state_dict(checkpoint['segmentation'])
     segmentation_network.eval()
 
     reconstruction_network = networks['reconstruction']
-    reconstruction_network.load_state_dict(checkpoint['reconstruction_net'])
+    reconstruction_network.load_state_dict(checkpoint['reconstruction'])
     reconstruction_network.eval()
 
 else:

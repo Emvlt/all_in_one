@@ -2,21 +2,21 @@
     "data_feeding_dict":{
         "dataset_name":"LIDC-IDRI",
         "train":true,
-        "training_proportion":0.8,
-        "is_subset":false,
+        "training_proportion":0.92,
         "batch_size":8,
-        "num_workers":2,
+        "num_workers":3,
         "shuffle":false
     },
 
     "training_dict":{
-        "learning_rate":5e-6,
-        "n_epochs":200,
+        "training_plan":{
+            "query_string":[1024,768,512,256],
+            "learning_rate":[1e-5, 5e-6, 5e-6, 5e-6],
+            "n_epochs":[200, 200, 200, 200]
+        },
         "segmentation_loss":"BCE",
         "reconstruction_loss":"MSE",
-        "sinogram_loss":"L1",
-        "segmentation_loss_weighting":0,
-        "dual_loss_weighting":0
+        "segmentation_loss_weighting":0
 
     },
 
@@ -31,20 +31,18 @@
                 "n_filters":16
             },
             "dual_dict":{
-                "dimension":1,
+                "dimension":2,
                 "name":"Unet",
                 "n_layers":1,
                 "n_filters":16
             },
             "n_iterations":1,
-            "load_path":"reconstruction/6_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_6_9.pth",
             "device_name":"cuda:0"
 
         },
         "segmentation":{
             "name":"Unet",
             "train":true,
-            "folded":false,
             "unet_dict":{
                 "dimension":2,
                 "name":"Unet",
@@ -53,7 +51,6 @@
                 "n_filters":8,
                 "activation_function":"sigmoid"
             },
-            "output_tensor":"mask",
             "load_path":"segmentation/6_percent_measurements/lpd_unet.pth",
             "device_name":"cuda:0"
         }
