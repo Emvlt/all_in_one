@@ -19,7 +19,7 @@ module load miniconda/3
 source /home/ev373/.bashrc
 conda activate all_in_one
 application="/home/ev373/.conda/envs/all_in_one/bin/python"
-options="experiences.py --platform hpc --metadata_path metadata_folder/segmentation/from_input_images/unet.json"
+options="train.py --platform hpc --metadata_path metadata_folder/segmentation/from_input_images/unet.json"
 workdir="/home/ev373/work/all_in_one"
 export OMP_NUM_THREADS=1
 np=$[${numnodes}*${mpi_tasks_per_node}]

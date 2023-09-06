@@ -77,7 +77,7 @@ def write_train_script(metadata_path:pathlib.Path):
         csv_writer.writerow(['conda activate all_in_one'])
 
         csv_writer.writerow([f'application="/home/ev373/.conda/envs/all_in_one/bin/python"'])
-        csv_writer.writerow([f'options="experiences.py --platform hpc --metadata_path {metadata_path}"'])
+        csv_writer.writerow([f'options="train.py --platform hpc --metadata_path {metadata_path}"'])
         csv_writer.writerow([f'workdir="/home/ev373/work/all_in_one"'])
 
         csv_writer.writerow(['export OMP_NUM_THREADS=1'])
@@ -121,7 +121,7 @@ def recursively_write_train_script(metadata_folder_path: pathlib.Path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--metadata_folder_path', default = 'metadata_folder/segmentation')
+    parser.add_argument('--metadata_folder_path', default = 'metadata_folder/reconstruction')
     args = parser.parse_args()
 
     metadata_file_path = pathlib.Path(args.metadata_folder_path)
