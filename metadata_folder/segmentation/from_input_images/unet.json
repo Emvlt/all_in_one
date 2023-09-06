@@ -2,26 +2,26 @@
     "data_feeding_dict":{
         "dataset_name":"LIDC-IDRI",
         "train":true,
-        "training_proportion":0.8,
-        "is_subset":false,
+        "training_proportion":0.92,
         "batch_size":8,
-        "num_workers":2,
+        "num_workers":4,
         "reconstructed":false,
         "shuffle":false
     },
 
     "training_dict":{
-        "learning_rate":1e-5,
-        "n_epochs":200,
+        "training_plan":{
+            "nodule_size":[1024, 768, 512, 256],
+            "learning_rate":[1e-5, 5e-6, 5e-6, 5e-6],
+            "n_epochs":[200, 200, 200, 200]
+        },
         "segmentation_loss":"BCE"
-
     },
 
     "architecture_dict":{
         "segmentation":{
             "name":"Unet",
             "train":true,
-            "folded":false,
             "unet_dict":{
                 "dimension":2,
                 "name":"Unet",
@@ -29,11 +29,10 @@
                 "output_channels":1,
                 "n_filters":8,
                 "activation_function":"sigmoid"
-            },
-            "output_tensor":"mask",
-            "load_path":"",
-            "device_name":"cuda:0"
-        }
+            }
+        },
+        "load_path":"",
+        "device_name":"cuda:0"
     }
 
 

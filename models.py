@@ -372,8 +372,13 @@ class Unet(nn.Module):
         else:
             self.last_layer = nn.LeakyReLU(negative_slope=0.1)
         # Initialize neural network blocks.
-        self.conv1 = InceptionLayer(dimension, input_channels, n_filters, n_filters)
-        self.conv2 = InceptionLayer(dimension, n_filters, n_filters, n_filters)
+        if dimension == 1:
+            self.conv1 = nn.Conv1d(input_channels, n_filters, 5, 1, 2)
+            self.conv2 = nn.Conv1d(n_filters, n_filters, 5, 1, 2)
+        elif dimension == 2:
+            self.conv1 = nn.Conv2d(input_channels, n_filters, 5, 1, 2)
+            self.conv2 = nn.Conv2d(n_filters, n_filters, 5, 1, 2)
+
         self.down1 = DownModule(dimension, n_filters, 2 * n_filters, n_filters)
         self.down2 = DownModule(dimension, 2 * n_filters, 4 * n_filters, n_filters)
         self.down3 = DownModule(dimension, 4 * n_filters, 8 * n_filters, n_filters)
@@ -384,6 +389,14 @@ class Unet(nn.Module):
         self.up3 = UpModule(dimension, 8 * n_filters, 4 * n_filters, n_filters)
         self.up4 = UpModule(dimension, 4 * n_filters, 2 * n_filters, n_filters)
         self.up5 = UpModule(dimension, 2 * n_filters, n_filters, n_filters)
+
+        if dimension == 1:
+            self.conv3 = nn.Conv1d(n_filters + input_channels, 2 * output_channels, 5, 1, 2)
+            self.conv4 = nn.Conv1d(2 * output_channels, output_channels, 5, 1, 2)
+        elif dimension == 2:
+            self.conv3 = nn.Conv2d(n_filters + input_channels, 2 * output_channels, 5, 1, 2)
+            self.conv4 = nn.Conv2d(2 * output_channels, output_channels, 5, 1, 2)
+
         self.conv3 = InceptionLayer(
             dimension, n_filters + input_channels, 2 * output_channels, n_filters
         )

@@ -6,10 +6,13 @@ import subprocess
 
 from utils import load_json
 
-DEFAULT_WALLCLOCK_TIME = '08:00:00'
+DEFAULT_WALLCLOCK_TIME = '12:00:00'
 
 WALLCLOCK_TIME_DICT = {
-
+    'reconstruction/6_percent_measurements/lpd_2d_1it_unet_unet_20_epochs':'12:00:00',
+    'reconstruction/25_percent_measurements/lpd_2d_1it_unet_unet_20_epochs':'12:00:00',
+    'reconstruction/100_percent_measurements/lpd_2d_1it_unet_unet_20_epochs':'12:00:00',
+    'segmentation/from_input_images/unet':'12:00:00'
 }
 
 def compute_n_gpus(metadata_dict):
@@ -42,7 +45,7 @@ def write_train_script(metadata_path:pathlib.Path):
         csv_writer.writerow([f'#SBATCH -A SCHONLIEB-SL3-GPU'])
         csv_writer.writerow([f'#SBATCH --nodes=1'])
         csv_writer.writerow([f'#SBATCH --ntasks=1'])
-        csv_writer.writerow([f'#SBATCH --gres=gpu:{compute_n_gpus(metadata_dict)}'])
+        csv_writer.writerow([f'#SBATCH --gres=gpu:1'])
         if f'{pipeline}/{experiment_folder_name}/{run_name}' in WALLCLOCK_TIME_DICT:
             wallclock_time = WALLCLOCK_TIME_DICT[f'{pipeline}/{experiment_folder_name}/{run_name}']
         else:
@@ -118,7 +121,7 @@ def recursively_write_train_script(metadata_folder_path: pathlib.Path):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--metadata_folder_path', default = 'metadata_folder/joint')
+    parser.add_argument('--metadata_folder_path', default = 'metadata_folder/segmentation')
     args = parser.parse_args()
 
     metadata_file_path = pathlib.Path(args.metadata_folder_path)

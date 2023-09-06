@@ -2,25 +2,24 @@
     "data_feeding_dict":{
         "dataset_name":"LIDC-IDRI",
         "train":true,
-        "training_proportion":0.8,
-        "is_subset":false,
+        "training_proportion":0.92,
         "batch_size":8,
-        "num_workers":2,
-        "reconstructed":true,
+        "num_workers":4,
         "shuffle":false
     },
 
     "training_dict":{
-        "learning_rate":1e-5,
-        "n_epochs":200,
-        "segmentation_loss":"BCE"
-
+        "training_plan":{
+            "learning_rate":[1e-4, 1e-5],
+            "n_epochs":[10, 10]
+        },
+        "reconstruction_loss":"MSE"
     },
 
     "architecture_dict":{
         "reconstruction":{
             "name":"lpd",
-            "train":false,
+            "train":true,
             "primal_dict":{
                 "dimension":2,
                 "name":"Unet",
@@ -28,32 +27,16 @@
                 "n_filters":16
             },
             "dual_dict":{
-                "dimension":1,
+                "dimension":2,
                 "name":"Unet",
                 "n_layers":1,
                 "n_filters":16
             },
-            "n_iterations":1,
-            "load_path":"reconstruction/100_percent_measurements/lpd_1_layer_full_dataset_L1_sinogram_loss_epochs_6_9.pth",
-            "device_name":"cuda:0"
-
+            "n_iterations":1
         },
-        "segmentation":{
-            "name":"Unet",
-            "train":true,
-            "folded":false,
-            "unet_dict":{
-                "dimension":2,
-                "name":"Unet",
-                "input_channels":1,
-                "output_channels":1,
-                "n_filters":8,
-                "activation_function":"sigmoid"
-            },
-            "output_tensor":"mask",
-            "load_path":"",
-            "device_name":"cuda:0"
-        }
+        "device_name":"cuda:0",
+        "load_path":""
+
     },
     "scan_parameter_dict":{
         "space_dict":{
@@ -65,7 +48,7 @@
         "angle_partition_dict":{
             "min_pt":0,
             "max_pt":6.28318530718,
-            "shape":1024
+            "shape":256
         },
         "detector_partition_dict":{
             "min_pt":-473,

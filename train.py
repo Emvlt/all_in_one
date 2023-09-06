@@ -127,11 +127,12 @@ def load_checkpoint(
     return networks, optimiser, row, epoch
 
 def train_reconstruction(
-    networks:Dict,
+    networks:Dict[str, torch.nn.Module],
     device:torch.device,
     training_plan:pd.DataFrame,
     checkpoint_file_path:pathlib.Path,
-    save_file_path:pathlib.Path):
+    save_file_path:pathlib.Path,
+    verbose :bool):
 
     ## Loss functions
     reconstruction_loss_function = loss_name_to_loss_function(training_dict["reconstruction_loss"])
@@ -183,10 +184,9 @@ def train_reconstruction(
             shuffle = data_feeding_dict['shuffle'],
             num_workers= data_feeding_dict['num_workers']
         )
+
         ### Set the appropriate learning rate value
         optimiser.param_groups[0]['lr'] = row['learning_rate']
-
-
 
         ### Loop over the epochs
         for epoch in range(n_epochs):
@@ -205,12 +205,21 @@ def train_reconstruction(
                 optimiser.step()
 
                 if index % 50 == 0:
+                    if verbose:
+                        print(index)
+                        print(f"Primal PSNR: {psnr_loss(approximated_reconstruction, reconstruction).item()}")
+                        print(f"Primal MSE: {reconstruction_loss_value.item()}")
+
                     run_writer.add_scalar(
                         f"Primal PSNR",
                         psnr_loss(approximated_reconstruction, reconstruction).item(),
                         global_step=index + trained_epochs * dataloader.__len__()
                         )
-                    run_writer.add_scalar(f"Primal MSE", reconstruction_loss_value.item(),global_step=index + epoch * dataloader.__len__())
+                    run_writer.add_scalar(
+                        f"Primal MSE",
+                        reconstruction_loss_value.item(),
+                        global_step=index + trained_epochs * dataloader.__len__()
+                        )
 
                     tgt_rec = torch.cat(
                             (
@@ -232,6 +241,270 @@ def train_reconstruction(
         'reconstruction': networks['reconstruction'].state_dict(),
     }, save_file_path)
 
+def train_joint(
+    networks:Dict[str, torch.nn.Module],
+    device:torch.device,
+    training_plan:pd.DataFrame,
+    checkpoint_file_path:pathlib.Path,
+    save_file_path:pathlib.Path,
+    verbose:bool):
+
+    ## Loss functions
+    segmentation_loss_function = loss_name_to_loss_function(training_dict["segmentation_loss"])
+
+    ## Optimisers
+    optimiser = torch.optim.Adam(
+        lr = training_plan.iloc[0]['learning_rate'],
+        params=networks['segmentation'].parameters()
+        )
+
+    ## Load checkpoint
+    networks, optimiser, checkpoint_row_index, checkpoint_epoch = load_checkpoint(
+        networks,
+        optimiser,
+        checkpoint_file_path,
+        device
+    )
+
+    ## Training loop
+    for index, row in training_plan.iloc[checkpoint_row_index:].iterrows():
+        ### Compute the number of trained epochs
+        trained_epochs = training_plan.iloc[:checkpoint_row_index]['n_epochs'].sum()
+        ### Compute the number of remaining epochs and the adequate learning rate
+        n_planned_epochs = row['n_epochs']
+        if index == checkpoint_row_index:
+            ### if we are at the
+            n_epochs = n_planned_epochs-checkpoint_epoch
+            trained_epochs += checkpoint_epoch
+        else:
+            n_epochs = n_planned_epochs
+        ### integer conversion of the data loaded from the checpoint file, or from the training plan
+        n_epochs = int(n_epochs)
+        trained_epochs = int(trained_epochs)
+
+        ### Define the training dataset and dataloader
+        ## Get the query string
+        query_string = f'{row["nodule_size"]} < annotation_size'
+        print(f'Querying the dataset for {query_string} ')
+        ## Dataset
+        lidc_idri_dataset = LIDC_IDRI(
+            path_to_processed_dataset=DATASET_PATH,
+            training_proportion = data_feeding_dict['training_proportion'],
+            training = True,
+            pipeline=pipeline,
+            query_string=query_string,
+            transform = transforms
+        )
+        ## Dataloader
+        dataloader = DataLoader(
+            dataset = lidc_idri_dataset,
+            batch_size = data_feeding_dict['batch_size'],
+            shuffle = data_feeding_dict['shuffle'],
+            num_workers= data_feeding_dict['num_workers']
+        )
+        ### Set the appropriate learning rate value
+        optimiser.param_groups[0]['lr'] = row['learning_rate']
+
+        for epoch in range(n_epochs):
+            print(f"Training epoch {epoch} / {n_epochs}...")
+            for index, data in enumerate(dataloader):
+                reconstruction = data[0].to(device)
+                mask = data[-1].to(device)
+
+                ## Re-sample
+                if data_feeding_dict['reconstructed']:
+                    sinogram = odl_backend.get_sinogram(reconstruction)
+                    sinogram = sinogram_transforms(sinogram)  # type:ignore
+                    reconstruction, approximated_sinogram = networks['reconstruction'](sinogram)
+
+                optimiser.zero_grad()
+                ## Segment
+                approximated_segmentation:torch.Tensor = networks['segmentation'](reconstruction)
+                loss_segmentation = segmentation_loss_function(approximated_segmentation, mask)
+                ## Get total loss
+                loss_segmentation.backward()
+                optimiser.step()
+
+                if index % 50 == 0:
+                    if verbose:
+                        print(index)
+                        print(f"Image BCE Loss: {loss_segmentation.item()}")
+                    run_writer.add_scalar(
+                        f"Image BCE Loss",
+                        loss_segmentation.item(),
+                        global_step=index + epoch * dataloader.__len__()
+                    )
+                    rec_seg_tgt = torch.cat(
+                            (
+                                display_transform(reconstruction[0, 0]),
+                                display_transform(approximated_segmentation[0, 0]),
+                                display_transform(mask[0, 0]),
+                            ),  dim=1)
+
+                    image_writer.write_image_tensor(rec_seg_tgt,"input_segmentation_tgt.jpg")
+
+            if data_feeding_dict['reconstructed']:
+                torch.save({
+                    'reconstruction': networks['reconstruction'].state_dict(),
+                    'segmentation': networks['segmentation'].state_dict(),
+                    'optimiser':optimiser.state_dict(),
+                    'row':row,
+                    'epoch':epoch
+                    }, checkpoint_file_path)
+            else:
+                torch.save({
+                    'segmentation': networks['segmentation'].state_dict(),
+                    'optimiser':optimiser.state_dict(),
+                    'row':row,
+                    'epoch':epoch
+                    }, checkpoint_file_path)
+        if data_feeding_dict['reconstructed']:
+            torch.save({
+                'reconstruction': networks['reconstruction'].state_dict(),
+                'segmentation': networks['segmentation'].state_dict(),
+            }, save_file_path)
+        else:
+            torch.save({
+                'segmentation': networks['segmentation'].state_dict(),
+            }, save_file_path)
+
+def train_segmentation(
+    networks:Dict[str, torch.nn.Module],
+    device:torch.device,
+    training_plan:pd.DataFrame,
+    checkpoint_file_path:pathlib.Path,
+    save_file_path:pathlib.Path,
+    verbose:bool):
+
+    ## Loss functions
+    segmentation_loss_function = loss_name_to_loss_function(training_dict["segmentation_loss"])
+    reconstruction_loss_function = loss_name_to_loss_function(training_dict["reconstruction_loss"])
+    psnr_loss = PSNR()
+
+    ## Optimisers
+    optimiser = torch.optim.Adam(
+        lr = training_plan.iloc[0]['learning_rate'],
+        params=list(networks['reconstruction'].parameters()) + \
+               list(networks['segmentation'].parameters())
+        )
+
+    ## Load checkpoint
+    networks, optimiser, checkpoint_row_index, checkpoint_epoch = load_checkpoint(
+        networks,
+        optimiser,
+        checkpoint_file_path,
+        device
+    )
+
+    ## Training loop
+    for index, row in training_plan.iloc[checkpoint_row_index:].iterrows():
+        ### Compute the number of trained epochs
+        trained_epochs = training_plan.iloc[:checkpoint_row_index]['n_epochs'].sum()
+        ### Compute the number of remaining epochs and the adequate learning rate
+        n_planned_epochs = row['n_epochs']
+        if index == checkpoint_row_index:
+            ### if we are at the
+            n_epochs = n_planned_epochs-checkpoint_epoch
+            trained_epochs += checkpoint_epoch
+        else:
+            n_epochs = n_planned_epochs
+        ### integer conversion of the data loaded from the checpoint file, or from the training plan
+        n_epochs = int(n_epochs)
+        trained_epochs = int(trained_epochs)
+
+        ### Define the training dataset and dataloader
+        ## Get the query string
+        query_string = f'{row["nodule_size"]} < annotation_size'
+        print(f'Querying the dataset for {query_string} ')
+        ## Dataset
+        lidc_idri_dataset = LIDC_IDRI(
+            path_to_processed_dataset=DATASET_PATH,
+            training_proportion = data_feeding_dict['training_proportion'],
+            training = True,
+            pipeline=pipeline,
+            query_string=query_string,
+            transform = transforms
+        )
+        ## Dataloader
+        dataloader = DataLoader(
+            dataset = lidc_idri_dataset,
+            batch_size = data_feeding_dict['batch_size'],
+            shuffle = data_feeding_dict['shuffle'],
+            num_workers= data_feeding_dict['num_workers']
+        )
+        ### Set the appropriate learning rate value
+        optimiser.param_groups[0]['lr'] = row['learning_rate']
+
+        for epoch in range(n_epochs):
+            print(f"Training epoch {epoch} / {n_epochs}...")
+            for index, data in enumerate(dataloader):
+                reconstruction = data[0].to(device)
+                mask = data[-1].to(device)
+
+                ## Re-sample
+                sinogram = odl_backend.get_sinogram(reconstruction)
+                sinogram = sinogram_transforms(sinogram)  # type:ignore
+                optimiser.zero_grad()
+                approximated_reconstruction, approximated_sinogram = networks['reconstruction'](sinogram)
+                loss_recontruction = reconstruction_loss_function(approximated_reconstruction, reconstruction)
+
+                ## Segment
+                approximated_segmentation:torch.Tensor = networks['segmentation'](approximated_reconstruction)
+                loss_segmentation = segmentation_loss_function(approximated_segmentation, mask)
+                ## Get total loss
+                total_loss = training_dict['segmentation_loss_weighting']*loss_segmentation + \
+                    (1-training_dict['segmentation_loss_weighting'])*loss_recontruction
+                total_loss.backward()
+                optimiser.step()
+
+                if index % 50 == 0:
+                    if verbose:
+                        print(index)
+                        print(f"Image BCE Loss: {loss_segmentation.item()}")
+                    run_writer.add_scalar(
+                        f"Primal PSNR",
+                        psnr_loss(approximated_reconstruction, reconstruction).item(),
+                        global_step=index + epoch * dataloader.__len__()
+                        )
+
+                    run_writer.add_scalar(
+                        f"Image BCE Loss",
+                        loss_segmentation.item(),
+                        global_step=index + epoch * dataloader.__len__()
+                        )
+
+                    run_writer.add_scalar(
+                        f"Total Loss",
+                        total_loss.item(),
+                        global_step=index + epoch * dataloader.__len__()
+                        )
+                    targets = torch.cat(
+                            (
+                                display_transform(reconstruction[0, 0]),
+                                display_transform(mask[0, 0]),
+                            ),  dim=1)
+                    approxs = torch.cat(
+                            (
+                                display_transform(approximated_reconstruction[0, 0]),
+                                display_transform(approximated_segmentation[0, 0]),
+                            ),  dim=1)
+
+                    image_writer.write_image_tensor(torch.cat((targets,approxs),dim=0,),"input_segmentation_tgt.jpg")
+
+            torch.save({
+                    'reconstruction': networks['reconstruction'].state_dict(),
+                    'segmentation': networks['segmentation'].state_dict(),
+                    'optimiser':optimiser.state_dict(),
+                    'row':row,
+                    'epoch':epoch
+                    }, checkpoint_file_path)
+
+        torch.save({
+                'reconstruction': networks['reconstruction'].state_dict(),
+                'segmentation': networks['segmentation'].state_dict(),
+            }, save_file_path)
+
+
 VERBOSE_DICT ={
     'holly-b':True,
     'hpc':False
@@ -239,7 +512,7 @@ VERBOSE_DICT ={
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--metadata_path", default='metadata_folder/reconstruction/6_percent_measurements/lpd_2d_1it_unet_unet_20_epochs.json')
+    parser.add_argument("--metadata_path", required=False, default='metadata_folder/segmentation/from_input_images/unet.json')
     parser.add_argument("--platform", required=False, default='holly-b')
     args = parser.parse_args()
 
@@ -322,7 +595,32 @@ if __name__ == "__main__":
             device,
             training_plan,
             checkpoint_file_path,
-            save_file_path)
+            save_file_path,
+            verbose = VERBOSE_DICT[args.platform]
+            )
+
+    elif pipeline == 'segmentation':
+        train_segmentation(
+            networks,
+            device,
+            training_plan,
+            checkpoint_file_path,
+            save_file_path,
+            verbose = VERBOSE_DICT[args.platform]
+            )
+
+    elif pipeline == 'joint':
+        train_joint(
+            networks,
+            device,
+            training_plan,
+            checkpoint_file_path,
+            save_file_path,
+            verbose = VERBOSE_DICT[args.platform]
+            )
+
+    else:
+        raise NotImplementedError
 
     '''segmentation_dict = architecture_dict['segmentation']
     segmentation_network = networks['segmentation']

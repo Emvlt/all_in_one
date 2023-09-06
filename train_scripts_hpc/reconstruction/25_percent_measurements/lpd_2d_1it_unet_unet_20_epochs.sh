@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH -J full_dataset_1d_5it_sinogram_MSE_0.5_loss
+#SBATCH -J lpd_2d_1it_unet_unet_20_epochs
 #SBATCH -A SCHONLIEB-SL3-GPU
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gres=gpu:1
-#SBATCH --time=08:00:00
+#SBATCH --time=12:00:00
 #SBATCH --mail-type=NONE
 #SBATCH --no-requeue
 #SBATCH -p ampere
@@ -19,7 +19,7 @@ module load miniconda/3
 source /home/ev373/.bashrc
 conda activate all_in_one
 application="/home/ev373/.conda/envs/all_in_one/bin/python"
-options="experiences.py --platform hpc --metadata_path metadata_folder/reconstruction/25_percent_measurements/full_dataset_1d_5it_sinogram_MSE_0.5_loss.json"
+options="experiences.py --platform hpc --metadata_path metadata_folder/reconstruction/25_percent_measurements/lpd_2d_1it_unet_unet_20_epochs.json"
 workdir="/home/ev373/work/all_in_one"
 export OMP_NUM_THREADS=1
 np=$[${numnodes}*${mpi_tasks_per_node}]

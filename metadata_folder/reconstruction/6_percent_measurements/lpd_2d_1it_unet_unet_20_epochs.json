@@ -4,8 +4,8 @@
         "train":true,
         "training_proportion":0.92,
         "batch_size":8,
-        "num_workers":2,
-        "shuffle":true
+        "num_workers":4,
+        "shuffle":false
     },
 
     "training_dict":{
