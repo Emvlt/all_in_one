@@ -512,7 +512,7 @@ VERBOSE_DICT ={
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--metadata_path", required=False, default='metadata_folder/segmentation/from_input_images/unet.json')
+    parser.add_argument("--metadata_path", required=True)
     parser.add_argument("--platform", required=False, default='holly-b')
     args = parser.parse_args()
 
