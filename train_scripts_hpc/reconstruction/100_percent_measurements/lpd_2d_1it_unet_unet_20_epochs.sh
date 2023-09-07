@@ -20,7 +20,7 @@ source /home/ev373/.bashrc
 conda activate all_in_one
 application="/home/ev373/.conda/envs/all_in_one/bin/python"
 options="train.py --platform hpc --metadata_path metadata_folder/reconstruction/100_percent_measurements/lpd_2d_1it_unet_unet_20_epochs.json"
-workdir="/home/ev373/work/all_in_one"
+workdir="/home/ev373/work/all_in_one_v2"
 export OMP_NUM_THREADS=1
 np=$[${numnodes}*${mpi_tasks_per_node}]
 CMD="$application $options"

@@ -241,7 +241,7 @@ def train_reconstruction(
         'reconstruction': networks['reconstruction'].state_dict(),
     }, save_file_path)
 
-def train_joint(
+def train_segmentation(
     networks:Dict[str, torch.nn.Module],
     device:torch.device,
     training_plan:pd.DataFrame,
@@ -368,7 +368,7 @@ def train_joint(
                 'segmentation': networks['segmentation'].state_dict(),
             }, save_file_path)
 
-def train_segmentation(
+def train_joint(
     networks:Dict[str, torch.nn.Module],
     device:torch.device,
     training_plan:pd.DataFrame,
