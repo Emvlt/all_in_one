@@ -5,8 +5,8 @@
         "DATASET_PATH" : "/local/scratch/public/AItomotools/processed/LIDC-IDRI"
     },
     "hpc":{
-        "RUNS_PATH"    : "/home/ev373/work/all_in_one/runs",
-        "MODELS_PATH"  : "/home/ev373/work/all_in_one/models",
+        "RUNS_PATH"    : "/home/ev373/work/all_in_one_v2/runs",
+        "MODELS_PATH"  : "/home/ev373/work/all_in_one_v2/models",
         "DATASET_PATH" : "/rds/user/ev373/hpc-work/datasets/LIDC-IDRI"
     }
 }
