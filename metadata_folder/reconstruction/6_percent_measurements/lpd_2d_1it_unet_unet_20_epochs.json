@@ -4,8 +4,8 @@
         "train":true,
         "training_proportion":0.92,
         "batch_size":8,
-        "num_workers":4,
-        "shuffle":false
+        "num_workers":2,
+        "shuffle":true
     },
 
     "training_dict":{
@@ -24,13 +24,13 @@
                 "dimension":2,
                 "name":"Unet",
                 "n_layers":1,
-                "n_filters":16
+                "n_filters":8
             },
             "dual_dict":{
                 "dimension":2,
                 "name":"Unet",
                 "n_layers":1,
-                "n_filters":16
+                "n_filters":8
             },
             "n_iterations":1
         },

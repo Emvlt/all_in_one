@@ -14,7 +14,6 @@ mpi_tasks_per_node=$(echo "$SLURM_TASKS_PER_NODE" | sed -e  's/^\([0-9][0-9]*\).
 . /etc/profile.d/modules.sh
 module purge
 module load rhel8/default-amp
-. /etc/profile.d/modules.sh
 module load miniconda/3
 source /home/ev373/.bashrc
 conda activate all_in_one
